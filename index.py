@@ -827,6 +827,7 @@ async def on_member_join(member):
 	await send_embed('Добро пожаловать, '+member.mention)
 
 if __name__ == '__main__':
+	global prefix
 	prefix = bot_data['prefix']
 	bot.run(bot_data['token'])
 
