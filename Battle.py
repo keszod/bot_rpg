@@ -6,7 +6,7 @@ import os
 from random import randint
 from datetime import datetime
 
-Version = 2.2
+Version = 2.3
 battle_cool_down = 60*60
 
 drop = {0:{'minExp':0,'maxExp':0,'rune':86,'chance':5}, 1:{'minExp':300,'maxExp':400,'rune':86,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':87,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':88,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':89,'chance':5}, 5:{'minExp':1500,'maxExp':1500,'rune':90,'chance':5}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
@@ -366,7 +366,8 @@ class Player(object):
 		old_bubble = Bubble(self.bubble.value)
 		self.set_default()
 		arsenal = self.arsenal + [self.magic_attribute]
-		for items in arsenal:		
+		for items in arsenal:
+			print(type(items))
 			if Magic_attribute in inspect.getmro(type(items)):
 				if not attribute or type(self) == Boss:
 					continue
@@ -1176,7 +1177,8 @@ difines_stat = {'health':'Здоровье', 'damage':'Урон', 'energy':'Вы
 if __name__ == '__main__':
 	effects = ['damage','armor_penetration','krit','vampirism','accuracy','bleeding','stamina','poison','defence']
 	items = get_items()
-	print(items[609])
+	print(items[28])
+	#print(items[609])
 	#print(sorted(items.keys()))
 	#print(items[609])
 	#item = Different(id=607, name='Сумеречный лес', vampirism=50)
@@ -1189,10 +1191,13 @@ if __name__ == '__main__':
 	#item = items[609]
 	#item.name = 'Побережье'
 	#save_item(item)
-	diff = Different(name='Сумеречный Дракон 👑', defence=95, damage=100, anti_defence=75, accuracy=75, crit_damage=25000, crit_chance=40, anti_crit=75, bleeding_damage=1, bubble=5, poison_damage=20, stun=95, darkness_awaits=True)
-	b = Boss(id_=7, name='Сумеречный Дракон 👑', health=2500)
-	b.magic_attribute = Lightning()
-	b.add(diff)
+	item = items[28]
+	print(item.anti_crit)
+	#item.bleeding_damage = Bleeding_damage(1)
+	#save_item(item)
+	#b = Boss(id_=7, name='Сумеречный Дракон 👑', health=2500)
+	#b.magic_attribute = Lightning()
+#	b.add(diff)
 	#print(b.crit_damage)
 	#item = Rune(id=0, price=0, rating='Мифический', name='Руна новичка', accuracy=10, damage=5)
 	#save_item(b,'bosses')
@@ -1226,5 +1231,5 @@ if __name__ == '__main__':
 	#print(battle)
 	#battle.next()
 	#print(battle)
-	update_bosses()
+	#update_bosses()
 	

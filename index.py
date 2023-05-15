@@ -274,7 +274,7 @@ async def give(member, message, db):
 	if 'attr' in message.content:
 		id_ = int(message.content.split()[2])
 		name = 'Атрибут'
-		player.magic_attribute = attrs[id_]
+		player.magic_attribute = attrs[id_]()
 	else:
 		id_ = int(message.content.split()[1])
 		item = get_items()[id_]
@@ -889,7 +889,7 @@ async def do_command(message):
 				elif command == 'give':
 					await give(member=message.author, message=message, db=db)
 				elif command == 'menu':
-					await give(member=message.author, message=message, db=db)
+					await menu(member=message.author, message=message, db=db)
 				else:
 					await member_commands[command](message=message, db=db)
 				return
