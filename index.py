@@ -281,7 +281,7 @@ async def menu(message):
 	async def menu_callback(interaction):
 		custom_id = interaction.data['custom_id']
 		view = View()
-		
+
 		async def change_str(interaction):
 			buttons = []
 			view=View()
@@ -420,11 +420,39 @@ async def raid(message, mentions=[]):
 
 	await do_battle(message,mentions,message.content.split()[1])
 
+async def trade(message, mentions):
+	async def accept_callback(interaction):
+		pass
+
+	text = message.content
+	accepted = []
+	view = View()
+
+	for mention in mentions:
+		text = text.replace(mention.mention,'').strip()
+	
+	if len(message.split()) == 2:
+		full_exp = int(text.split()[1])
+		exp = int(full_exp - full_exp*0.3)
+		answer = 'С учётом комисии вы переведёте {} пользователю {}. Вы согласны?'.format(exp, mention.mention)
+		should_accept = [message.author]
+		
+		button = Button(custom_id='accept', label='Согласен', row=1, style=discord.ButtonStyle.green)
+		button.callback = accept_callback
+		view.add_item(button)
+		
+
+
+	embed = discord.Embed(description=answer, colour = discord.Colour.from_rgb(0, 255, 128))
+
+	await interaction.response.edit_message(embed=embed, view=view)
+
+
 async def do_battle(message, mentions=[], boss=None):
 	accepted = []
 	buttons = []
 	if not message.author in mentions:
-		mentions.append(message.author)
+		mentions = [message.author] + mentions
 	
 	if boss:
 		if len(mentions) > 4:
@@ -526,47 +554,52 @@ async def do_battle(message, mentions=[], boss=None):
 			await change_str(interaction)
 
 		async def end_battle(edit, reward=True):
-			battle.sort()
-			id_ = db.add_battle(battle)
-			print(id_)
-			battle.id = id_
+			global db
+			db = connect_data_base(message.guild.name)
+			
 			text = battle.message+'\n'
+			survived_players = battle.players[:]
+			battle.sort()
+		
+			if survived_players != []:
+				exp = randint(drop[battle.boss.id]['minExp'], drop[battle.boss.id]['maxExp'])
+			else:
+				exp = 0
 
+			print('here', exp)
+			exp //= len(battle.players)
+			print('heeeeeeeere', exp, len(battle.players))
+			
 			for player in battle.members:
 				if not type(player) == Boss:
 					print(player)
-					db_player = db.get_player(player.id)
+					print(player.id)
+					db_player = db.get_player(str(player.id))
 					db_player.clear('consumables')
 					text += db_player.name
 					energy = 10
-					exp = 0
-
-					if player not in battle.players:
+					
+					if player not in survived_players:
 						db_player.clear('runes')
 						energy += 10
 						
-					elif battle.boss and reward and int(battle.boss.id) in drop:
-						exp = randint(drop[battle.boss.id]['minExp'], drop[battle.boss.id]['maxExp'])
-						await change_exp(db.get_user(db_player.id), exp)
-						
+					elif survived_players != [] and player == survived_players[0] and battle.boss and reward and int(battle.boss.id) in drop:
 						if battle.boss and randint(1,100) <= drop[battle.boss.id]['chance']:
 							rune = get_items()[drop[battle.boss.id]['rune']]
 							db_player.add(rune)
 							
 							text += ' Получено '+rune.name+'.'
-						
-						elif battle.boss:
-							text += ' Предметов не выпало.'
 
 					if not player.last_raid_ready and battle.boss:
 						energy = 50
 
 					if exp > 0:
+						await change_exp(db.get_user(db_player.id), exp)
 						text += f' получено {exp} опыта.'
 					else:
 						text += ' опыт не получен.'
 					
-					text += f' Потрачено выносливоcти {energy}.'
+					text += f' Потрачено выносливоcти 🔋{energy}.'
 					db_player.energy -= energy
 
 					text += '\n'
@@ -589,6 +622,10 @@ async def do_battle(message, mentions=[], boss=None):
 				button.callback = element[3]
 				view.add_item(button)
 				
+			id_ = db.add_battle(battle)
+			print(id_)
+			battle.id = id_
+			battle.history[-1] = text
 			
 			embed = discord.Embed(description=text, colour = discord.Colour.from_rgb(0, 255, 128))
 			await edit(embed=embed,view=view)
@@ -643,6 +680,7 @@ async def do_battle(message, mentions=[], boss=None):
 				player.last_raid = datetime.now()
 				db.update_player(player.id,player)	
 
+			battle.history.append(interaction.message.embeds[0].description)
 		buttons = []
 		battle.next()
 		
@@ -705,6 +743,9 @@ async def do_battle(message, mentions=[], boss=None):
 			added_users.append(user)
 	
 	if boss:
+		if len(mentions) > 1:
+			boss.start_health = Health(int(boss.health.value + 0.5*boss.health.value*(len(mentions)-1)))
+			boss.health = boss.start_health
 		text = 'Рейд!👾\n'
 		battle = Battle(boss, *players)
 	else:
@@ -756,22 +797,26 @@ async def do_command(message):
 					member_commands = member_commands | admin_commands
 			
 			if message.mentions == []:
-				if command == '!exp':
+				if command == 'exp':
 					await know_exp(message=message, self_call=True)
-				elif command == '!str':
+				elif command == 'str':
 					await stats(member=message.author, message=message)
 				else:
 					await member_commands[command](message=message)
 				return
 			
-			elif command == '!raid':
+			elif command == 'raid':
 				await raid(message, message.mentions)
 				return
 
-			elif command == '!duel':
+			elif command == 'duel':
 				await duel(message, message.mentions)
 				return
 			
+			elif command == 'trade':
+				await trade(message, message.mentions)
+				return
+
 			for user_ in message.mentions:
 				try:
 					await member_commands[command](member=user_,message=message)

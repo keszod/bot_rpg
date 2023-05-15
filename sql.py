@@ -1,5 +1,5 @@
 import sqlite3
-import  codecs
+import codecs
 import pickle
 from Battle import *
 from datetime import datetime
@@ -8,6 +8,7 @@ class SQLighter:
 
 	def __init__(self,database_file):
 		"""Подключаемся к БД и сохраняем курсор соединения"""
+		self.database_file = database_file
 		self.connection = sqlite3.connect(database_file)
 		self.cursor = self.connection.cursor()
 		self.execute = self.cursor.execute
@@ -157,9 +158,9 @@ class SQLighter:
 	def get_player(self,user_id):
 		"""Находим user_id по инн"""
 		with self.connection:
-			result = self.execute("SELECT * FROM `Player` WHERE `user_id` = ?",(user_id,)).fetchall()
-			
-			player = pickle.loads(codecs.decode(result[0][-1].encode(),'base64'))
+			result = self.execute("SELECT * FROM `Player` WHERE `user_id` = ?",(user_id,)).fetchone()
+			print( self.database_file)
+			player = pickle.loads(codecs.decode(result[-1].encode(),'base64'))
 
 			if len(player.favorite) > 5:
 				player.favorite = player.favorite[-5:]
