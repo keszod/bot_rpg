@@ -131,6 +131,19 @@ async def bind(message, db):
 
 		await send_message('Канал успешно привязан', message.channel.id)
 
+async def stamina(member, message, db=None):
+	arg = message.content.split()[1]
+	print(arg)
+	player = db.get_player(member.id)
+	if arg == 'full':
+		player.energy += Energy(100)
+	elif arg.replace('+','').replace('-','').isnumeric():
+		player.energy += Energy(int(arg))
+
+	db.update_player(player.id, player)
+
+	await send_embed('Выносливоcть изменена', message.channel.id)
+
 async def change_exp_command(member, message, db=None):
 	data = ''.join(message.content.split()[1:]).replace('+','').replace('- ','-')
 	data = re.search('[\+\-]*\d+', data).group(0).strip()
@@ -401,7 +414,7 @@ async def menu(message, db):
 
 
 
-async def duel(message, mentions=[]):
+async def duel(message, mentions=[], db=None):
 	await do_battle(message,mentions=mentions, db=db, boss=message.content.split()[1])
 
 async def delete_message_on_time(message,time:int):
@@ -625,14 +638,12 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 			survived_players = battle.players[:]
 			battle.sort()
 		
-			if survived_players != []:
+			if survived_players != [] and boss.id in drop:
 				exp = randint(drop[battle.boss.id]['minExp'], drop[battle.boss.id]['maxExp'])
 			else:
 				exp = 0
 
-			print('here', exp)
 			exp //= len(battle.players)
-			print('heeeeeeeere', exp, len(battle.players))
 			
 			for player in battle.members:
 				if not type(player) == Boss:
@@ -647,7 +658,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 						db_player.clear('runes')
 						energy += 10
 						
-					elif survived_players != [] and player == survived_players[0] and battle.boss and reward and int(battle.boss.id) in drop:
+					elif survived_players != [] and player == survived_players[0] and battle.boss and reward and int(battle.boss.id) in drop and boss.id in drop and 'rune' in drop[boss.id]:
 						if battle.boss and randint(1,100) <= drop[battle.boss.id]['chance']:
 							rune = get_items()[drop[battle.boss.id]['rune']]
 							db_player.add(rune)
@@ -839,17 +850,25 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 
 async def do_command(message):
 	db = connect_data_base(message.guild.name)
-	
+	prefix = bot_data['prefix']
 	user = db.get_user(message.author.id)
 	await check_level(user, db=db)
 	
 	show_data = {'runes':'runes', 'eq':'equipment', 'inv':'inventory', 'cons':'consumables', 'diff':'different','bag':'bag'}
 	try:
-		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade}
-		admin_commands = {'ban':message.guild.ban, 'mute': mute, 'give':give, 'e':change_exp_command, 'bind':bind, 'buy':buy}
+		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade, 'buy':buy}
+		admin_commands = {'ban':message.guild.ban, 'mute': mute, 'give':give, 'e':change_exp_command, 'bind':bind, 'stamina':stamina}
 		commands = member_commands
 		command = message.content.split()[0]
 
+		mentions = message.mentions
+
+		if message.reference:
+			reply_mess = await message.channel.fetch_message(message.reference.message_id)
+			reply_user = reply_mess.author
+			if not reply_user in mentions:
+				mentions.append(reply_user)
+		print(mentions)
 		if command[0] == prefix and command[1:] in list(admin_commands.keys())+list(member_commands.keys()):
 			command = command[1:]
 			if command in admin_commands.keys():
@@ -865,28 +884,30 @@ async def do_command(message):
 				else:
 					member_commands = member_commands | admin_commands
 			
-			if message.mentions == []:
+			if mentions == []:
 				if command == 'exp':
 					await know_exp(message=message, self_call=True, db=db)
 				elif command == 'str':
 					await stats(member=message.author, message=message, db=db)
+				elif command == 'stamina':
+					await stamina(member=message.author, message=message, db=db)
 				else:
 					await member_commands[command](message=message, db=db)
 				return
 			
 			elif command == 'raid':
-				await raid(message, message.mentions)
+				await raid(message, mentions, db=db)
 				return
 
 			elif command == 'duel':
-				await duel(message, message.mentions)
+				await duel(message, mentions, db=db)
 				return
 			
 			elif command == 'trade':
-				await trade(message, message.mentions, db=db)
+				await trade(message, mentions, db=db)
 				return
 
-			for user_ in message.mentions:
+			for user_ in mentions:
 				try:
 					await member_commands[command](member=user_,message=message, db=db)
 				except:
@@ -904,6 +925,7 @@ async def do_command(message):
 
 @bot.event
 async def on_message(message):	
+	prefix = bot_data['prefix']
 	db = connect_data_base(message.guild.name)
 	if message.author == bot.user:
 		return

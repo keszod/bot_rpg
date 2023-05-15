@@ -6,10 +6,10 @@ import os
 from random import randint
 from datetime import datetime
 
-Version = 2
+Version = 2.2
 battle_cool_down = 60*60
 
-drop = {1:{'minExp':300,'maxExp':400,'rune':86,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':87,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':88,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':89,'chance':5}, 5:{'minExp':1500,'maxExp':1500,'rune':90,'chance':5}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
+drop = {0:{'minExp':0,'maxExp':0,'rune':86,'chance':5}, 1:{'minExp':300,'maxExp':400,'rune':86,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':87,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':88,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':89,'chance':5}, 5:{'minExp':1500,'maxExp':1500,'rune':90,'chance':5}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
 
 def update_bosses():
 	bosses = get_items('bosses')
@@ -638,6 +638,7 @@ class Boss(Player):
 		self.crit_damage = Crit_damage(0)
 		self.crit_chance = Crit_chance(0)
 		self.anti_crit = Anti_crit(0)
+		self.energy_regen = Energy_regen(5)
 		self.other_anti_crit = Anti_crit(0) 
 		self.stun = Stun(0)
 		self.accuracy = Accuracy(0)
@@ -1194,7 +1195,7 @@ if __name__ == '__main__':
 	b.add(diff)
 	#print(b.crit_damage)
 	#item = Rune(id=0, price=0, rating='Мифический', name='Руна новичка', accuracy=10, damage=5)
-	save_item(b,'bosses')
+	#save_item(b,'bosses')
 	#p = Player(id_=11, name='Витя', health=0)
 	#p.level = 50
 	#item = Weapon(id=1,name='Огонь',damage=15)
@@ -1225,5 +1226,5 @@ if __name__ == '__main__':
 	#print(battle)
 	#battle.next()
 	#print(battle)
-	#update_bosses()
+	update_bosses()
 	
