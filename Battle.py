@@ -6,7 +6,7 @@ import os
 from random import randint
 from datetime import datetime
 
-Version = 1.9
+Version = 2
 battle_cool_down = 60*60
 
 drop = {1:{'minExp':300,'maxExp':400,'rune':86,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':87,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':88,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':89,'chance':5}, 5:{'minExp':1500,'maxExp':1500,'rune':90,'chance':5}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
@@ -223,6 +223,7 @@ class Player(object):
 		self.health = Health(int(self.level) + int(self.level)**2//10)
 		self.damage = Damage(10)
 		self.heal = Heal(0)
+		self.energy_regen = Energy_regen(5)
 		self.defence = Defence(0)
 		self.anti_defence = Anti_defence(0)
 		self.armor_break = Armor_break(0)
@@ -428,7 +429,7 @@ class Player(object):
 				self.bubble -= math.ceil(self.bubble.value * precent//100)
 			
 			if (datetime.now() - self.last_energy_updated).seconds > battle_cool_down:
-				self.energy += 5*time_left//60*60
+				self.energy += self.energy_regen.value*time_left//60*60
 				
 				self.last_energy_updated = datetime.now()
 
@@ -455,7 +456,7 @@ class Player(object):
 		if 82 in items.ids:
 			for attr in self.__dict__:
 				basis = inspect.getmro(type(getattr(self,attr)))
-				not_include = [Bleeding_damage, Fire_damage, Stun, Multiplyer, Heal]
+				not_include = [Bleeding_damage, Fire_damage, Stun, Multiplyer, Heal, Energy, Energy_regen]
 				if Stat in basis and not 'enemy_' in attr:
 					for stat in not_include:
 						if stat in basis:
@@ -1095,6 +1096,9 @@ class Health_precent(Stat):
 class Darkness_awaits(Stat):
 	pass
 
+class Energy_regen(Stat):
+	pass
+
 class Adapt(Stat):
 	def __add__(self, other):		
 		if type(other) == int:
@@ -1165,7 +1169,7 @@ def import_from_file():
 
 
 difines_outfit = {Weapon:'Оружие', Armor:'Броня', Ring:'Кольцо', Belt:'Пояс', Pet:'Питомец', Necklace:'Ожерелье', Trophies:"Трофей", Food:"Еда", Potion:"Зелье"}
-difines_stat = {'health':'Здоровье', 'damage':'Урон', 'energy':'Выносливость->%', 'defence':'Защита', 'crit_chance':'Крит шанс->%', 'crit_damage':'Крит урон->%', 'accuracy':'Меткость->%', 'anti_defence':'Бронебробите->%', 'anti_crit':'Стойкость->%', 'vampirism':'Вампиризм->%', 'poison_damage':'Урон ядом->/ход', 'bleeding_damage':'Урон кровотечением->/ход', 'fire_damage':'Урон огнём->/ход', 'immunity':'Иммунитет', 'coagulation':'Коагуляция', 'bubble':'Божественный щит', 'stun':'Оглушение->%', 'multiplyer':'Множитель опыта->%'}
+difines_stat = {'health':'Здоровье', 'damage':'Урон', 'energy':'Выносливость->%', 'defence':'Защита', 'crit_chance':'Крит шанс->%', 'crit_damage':'Крит урон->%', 'accuracy':'Меткость->%', 'anti_defence':'Бронебробите->%', 'anti_crit':'Стойкость->%', 'vampirism':'Вампиризм->%', 'poison_damage':'Урон ядом->/ход', 'bleeding_damage':'Урон кровотечением->/ход', 'fire_damage':'Урон огнём->/ход', 'immunity':'Иммунитет', 'coagulation':'Коагуляция', 'bubble':'Божественный щит', 'stun':'Оглушение->%', 'multiplyer':'Множитель опыта->%', 'energy_regen':'Эффективность отдыха->/час'}
 
 
 if __name__ == '__main__':

@@ -40,26 +40,26 @@ def level_exp_cacl(level):
 
 	return exp
 
-async def change_exp(user,exp):
+async def change_exp(user, exp, db=None):
 	user[4] = user[4]+exp
 	db.update_user(user[2],{'exp':user[4]})
-	await check_level(user)
+	await check_level(user, db=db)
 
 async def send_message(text, channel=676122065157488702):
 	channel = bot.get_channel(channel)
 	await channel.send(text)
 
-async def send_embed(embed, channel=676122065157488702):
+async def send_embed(embed, channel=676122065157488702, view=None):
 	embed = discord.Embed(description=embed, colour = discord.Colour.from_rgb(0, 255, 128))
 	channel = bot.get_channel(int(channel))
-	return await channel.send(embed=embed)
+	return await channel.send(embed=embed, view=view)
 
 def next_date_create(level):
 	if level > 100:
 		level = 100
 	return datetime.now() + timedelta(seconds=randint(int(timer_level[level].split('-')[1])*60,int(timer_level[level].split('-')[1])*60))
 
-async def check_level(user):
+async def check_level(user, db):
 	level,exp,exp_for_level = user[3:]
 	old_level = level
 	if exp < 0:
@@ -77,14 +77,15 @@ async def check_level(user):
 
 	if level != old_level:
 		dis_user = bot.get_user(int(user[2]))
-		answer = 'Поздравляю, '+dis_user.mention+', ты повысил уровень эволюции!'+f' Твоя эволюция {level} ранга!'
+		if level > old_level:
+			answer = 'Поздравляю, '+dis_user.mention+', ты повысил уровень эволюции!'+f' Твоя эволюция {level} ранга!'
 
-		channel = db.find_channel('level')
+			channel = db.find_channel('level')
 
-		if channel:
-			await send_embed(answer, channel)
-		else:
-			await send_embed(answer)
+			if channel:
+				await send_embed(answer, channel)
+			else:
+				await send_embed(answer)
 
 		player = db.get_player(user[2])
 		player.level = level
@@ -112,7 +113,7 @@ def declination(root,num,ending):
 	else:
 		return root+ending[2]
 
-async def bind(message):
+async def bind(message, db):
 	text = message.content
 
 	if len(text.split()) == 3:
@@ -130,15 +131,15 @@ async def bind(message):
 
 		await send_message('Канал успешно привязан', message.channel.id)
 
-async def change_exp_command(member, message, **kwargs):
+async def change_exp_command(member, message, db=None):
 	data = ''.join(message.content.split()[1:]).replace('+','').replace('- ','-')
 	data = re.search('[\+\-]*\d+', data).group(0).strip()
 	print('exp is', data)
 	user = db.get_user(member.id)
-	await change_exp(user,int(data))
+	await change_exp(user,int(data), db=db)
 	await send_embed('У '+member.mention+' опыт был успешно изменён', channel=message.channel.id)
 
-async def know_exp(message, self_call=False, **kwargs):
+async def know_exp(message, self_call=False, db=None):
 	member = message.author
 	if not self_call:
 		ds_user = 'У '+str(member.mention)+' '
@@ -154,7 +155,7 @@ async def know_exp(message, self_call=False, **kwargs):
 async def mute():
 	pass
 
-async def get_attr(message):
+async def get_attr(message, db):
 	attrs = [Fire,Ice,Wind,Earth,Lightning,Plants,Light,Darkness]
 	attr = attrs[int(message.content.split()[1])]()
 	user = db.get_user(message.author.id)
@@ -164,7 +165,7 @@ async def get_attr(message):
 	db.update_player(message.author.id, player)
 	await send_embed('Атрибут {} успешно приобритён'.format(attr.name), message.channel.id)
 
-async def buy(message):
+async def buy(message, db):
 	attrs = [Fire,Ice,Wind,Earth,Lightning,Plants,Light,Darkness]
 	id_ = message.content.split()[1]
 	channel_id = db.find_channel('shop')
@@ -181,7 +182,7 @@ async def buy(message):
 		
 		if int(user[4]) >= item.price.value:
 			player.add(item)
-			await change_exp(user,item.price.value*-1)
+			await change_exp(user,item.price.value*-1, db=db)
 			db.update_player(message.author.id, player)
 
 			await send_embed(f'Предмет {id_} успешно куплен', message.channel.id)
@@ -197,7 +198,7 @@ async def buy(message):
 		print(int(user[4]) >= price)
 
 		if int(user[4]) >= price:
-			await change_exp(user,price*-1)
+			await change_exp(user,price*-1, db=db)
 			attr = attrs[random.randint(0,len(attrs)-1)]()
 			player.magic_attribute = attr
 			player.set_stats()
@@ -206,7 +207,7 @@ async def buy(message):
 		else:
 			await send_embed(f'Недостаточно средств', message.channel.id)
 
-async def sell(message):
+async def sell(message, db):
 	id_ = message.content.split()[1]
 	channel_id = db.find_channel('shop')
 	if not channel_id or message.channel.id != int(channel_id):
@@ -220,18 +221,18 @@ async def sell(message):
 			return
 		
 		if player.delete(int(id_)):
-			await change_exp(user,item.price.value*0.5)
+			await change_exp(user,item.price.value*0.5, db=db)
 			db.update_player(message.author.id, player)
 
 			await send_embed(f'Предмет {id_} успешно продан', message.channel.id)
 	
-async def show(message, attr):
+async def show(message, attr, db):
 	player = db.get_player(message.author.id)
 	data = str(getattr(player,attr))
 	
 	await send_embed(data, message.channel.id)
 
-async def equip(message):
+async def equip(message, db):
 	text = message.content.split()[1]
 	if text.isnumeric():
 		player = db.get_player(message.author.id)
@@ -239,7 +240,7 @@ async def equip(message):
 			db.update_player(message.author.id, player)
 			await send_embed(f'Предмет одет', message.channel.id)
 
-async def use(message):
+async def use(message, db):
 	text = message.content.split()[1]
 	
 	if text.isnumeric():
@@ -248,13 +249,13 @@ async def use(message):
 			db.update_player(message.author.id, player)
 			await send_embed(f'Израсходовано', message.channel.id)
 
-async def stats(message, member):
+async def stats(message, member=None, db=None):
 	text = ''
 	player = db.get_player(member.id)
 	
 	await send_embed(str(player), message.channel.id)
 
-async def give(message):
+async def give(message, db):
 	attrs = [Fire,Ice,Wind,Earth,Lightning,Plants,Light,Darkness]
 	if message.mentions != []:
 		member = message.mentions[0]
@@ -275,7 +276,7 @@ async def give(message):
 
 	await send_embed(name + f' {id_} успешно отдан', message.channel.id)
 
-async def menu(message):
+async def menu(message, db):
 	menu_buttons = [['equipment','Инвентарь'],['stats','Харак-ки'],['replays','Повторы']]
 	
 	async def menu_callback(interaction):
@@ -401,7 +402,7 @@ async def menu(message):
 
 
 async def duel(message, mentions=[]):
-	await do_battle(message,mentions)
+	await do_battle(message,mentions=mentions, db=db, boss=message.content.split()[1])
 
 async def delete_message_on_time(message,time:int):
 	time = datetime.now() + timedelta(seconds=time)
@@ -414,41 +415,107 @@ async def delete_message_on_time(message,time:int):
 		await asyncio.sleep(5)
 
 
-async def raid(message, mentions=[]):
+async def raid(message, mentions=[],  db=None):
 	if not message.content.split()[1].isnumeric():
 		return
 
-	await do_battle(message,mentions,message.content.split()[1])
+	await do_battle(message,mentions=mentions, db=db, boss=message.content.split()[1])
 
-async def trade(message, mentions):
+async def trade(message, mentions, db):
 	async def accept_callback(interaction):
-		pass
+		if interaction.user in should_accept and interaction.user not in accepted:
+			accepted.append(interaction.user)
+			embed = discord.Embed(description=interaction.message.embeds[0].description+'\n {} согласен!'.format(interaction.user.mention), colour = discord.Colour.from_rgb(0, 255, 128))
+			await interaction.response.edit_message(embed=embed, view=view)
 
+		for user in should_accept:
+			if not user in accepted:
+				return
+
+		message = interaction.message
+		take_user = db.get_user(mentions[0].id)
+
+		if deal == 'give':
+			if give_user[4] >= full_exp:
+				await change_exp(take_user,exp,db)
+				await change_exp(give_user,full_exp*-1,db)
+				answer = 'Опыт передан!'
+			else:
+				answer = 'Недостаточно опыта'
+		
+		elif deal == 'trade':
+			take_player = db.get_player(take_user[2])
+			give_player = db.get_player(give_user[2])
+			
+			if take_user[4] < full_exp:
+				answer = 'У пользователя недостаточно опыта для покупки'
+			elif int(id_) not in give_player.ids:
+				answer = 'У вас нет такого предмета'
+			else:
+				await change_exp(take_user,full_exp*-1,db)
+				give_player.delete(id_)
+				take_player.add(get_items()[id_])
+				db.update_player(give_player.id, give_player)
+				db.update_player(take_player.id, take_player)
+
+				answer = 'Трейд совершен!'
+
+		embed = discord.Embed(description=answer, colour = discord.Colour.from_rgb(0, 255, 128))
+
+		await message.edit(embed=embed, view=None)
+
+	
 	text = message.content
 	accepted = []
 	view = View()
+	give_user = db.get_user(message.author.id)
 
 	for mention in mentions:
 		text = text.replace(mention.mention,'').strip()
 	
-	if len(message.split()) == 2:
+	print(text)
+	if len(text.split()) == 2:
 		full_exp = int(text.split()[1])
-		exp = int(full_exp - full_exp*0.3)
-		answer = 'С учётом комисии вы переведёте {} пользователю {}. Вы согласны?'.format(exp, mention.mention)
-		should_accept = [message.author]
+		if int(give_user[4]) >= int(full_exp):
+			exp = int(full_exp*0.7)
+			answer = 'С учётом комисии вы переведёте {} пользователю {}. Вы согласны?'.format(exp, mention.mention)
+			should_accept = [message.author]
+			
+			button = Button(custom_id='accept', label='Согласен', row=1, style=discord.ButtonStyle.green)
+			button.callback = accept_callback
+			view.add_item(button)
+			deal = 'give'
 		
-		button = Button(custom_id='accept', label='Согласен', row=1, style=discord.ButtonStyle.green)
-		button.callback = accept_callback
-		view.add_item(button)
+		else:
+			answer = 'Недостаточно средств'
+
+	elif len(text.split()) == 3:
+		id_, full_exp = message.content.split()[1:3]
+		full_exp, id_ = int(full_exp), int(id_)
+		take_user = db.get_user(mentions[0].id)
 		
+		player = db.get_player(message.author.id)
 
-
+		if int(id_) not in player.ids:
+			answer = 'У вас нет такого предмета'
+		elif int(take_user[4]) < full_exp:
+			answer = 'У пользователя недостаточно опыта для покупки'
+		else:
+			exp = int(full_exp*0.7)
+			answer = 'С учётом комисии вы продадите предмет {} пользователю {} за {}, ваша выручка {}. Вы согласны?'.format(id_,mention.mention, full_exp, exp)
+			should_accept = [message.author, mentions[0]]
+			
+			button = Button(custom_id='accept', label='Согласен', row=1, style=discord.ButtonStyle.green)
+			button.callback = accept_callback
+			view.add_item(button)
+			deal = 'trade'
+	
 	embed = discord.Embed(description=answer, colour = discord.Colour.from_rgb(0, 255, 128))
 
-	await interaction.response.edit_message(embed=embed, view=view)
+	await message.channel.send(embed=embed, view=view)
+	await delete_message_on_time(message, 60*3)
 
-
-async def do_battle(message, mentions=[], boss=None):
+async def do_battle(message, mentions=[], db=None, boss=None):
 	accepted = []
 	buttons = []
 	if not message.author in mentions:
@@ -554,9 +621,6 @@ async def do_battle(message, mentions=[], boss=None):
 			await change_str(interaction)
 
 		async def end_battle(edit, reward=True):
-			global db
-			db = connect_data_base(message.guild.name)
-			
 			text = battle.message+'\n'
 			survived_players = battle.players[:]
 			battle.sort()
@@ -594,7 +658,7 @@ async def do_battle(message, mentions=[], boss=None):
 						energy = 50
 
 					if exp > 0:
-						await change_exp(db.get_user(db_player.id), exp)
+						await change_exp(db.get_user(db_player.id), exp, db=db)
 						text += f' получено {exp} опыта.'
 					else:
 						text += ' опыт не получен.'
@@ -774,10 +838,15 @@ async def do_battle(message, mentions=[], boss=None):
 	return
 
 async def do_command(message):
+	db = connect_data_base(message.guild.name)
+	
+	user = db.get_user(message.author.id)
+	await check_level(user, db=db)
+	
 	show_data = {'runes':'runes', 'eq':'equipment', 'inv':'inventory', 'cons':'consumables', 'diff':'different','bag':'bag'}
 	try:
-		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use}
-		admin_commands = {'ban':message.guild.ban,'mute': mute, 'give':give, 'e':change_exp_command, 'bind':bind, 'buy':buy}
+		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade}
+		admin_commands = {'ban':message.guild.ban, 'mute': mute, 'give':give, 'e':change_exp_command, 'bind':bind, 'buy':buy}
 		commands = member_commands
 		command = message.content.split()[0]
 
@@ -798,11 +867,11 @@ async def do_command(message):
 			
 			if message.mentions == []:
 				if command == 'exp':
-					await know_exp(message=message, self_call=True)
+					await know_exp(message=message, self_call=True, db=db)
 				elif command == 'str':
-					await stats(member=message.author, message=message)
+					await stats(member=message.author, message=message, db=db)
 				else:
-					await member_commands[command](message=message)
+					await member_commands[command](message=message, db=db)
 				return
 			
 			elif command == 'raid':
@@ -814,17 +883,17 @@ async def do_command(message):
 				return
 			
 			elif command == 'trade':
-				await trade(message, message.mentions)
+				await trade(message, message.mentions, db=db)
 				return
 
 			for user_ in message.mentions:
 				try:
-					await member_commands[command](member=user_,message=message)
+					await member_commands[command](member=user_,message=message, db=db)
 				except:
 					traceback.print_exc()
 		
 		elif command in show_data:
-			await show(message, show_data[command])
+			await show(message, show_data[command], db=db)
 
 
 	except:
@@ -834,10 +903,8 @@ async def do_command(message):
 
 
 @bot.event
-async def on_message(message):
-	global db
+async def on_message(message):	
 	db = connect_data_base(message.guild.name)
-	
 	if message.author == bot.user:
 		return
 	
@@ -860,11 +927,12 @@ async def on_message(message):
 		user[4] += randint(15,25)
 		db.update_user(user[2],{'exp':user[4]})
 		
-		if not await check_level(user):
+		if not await check_level(user, db=db):
 			db.update_user(user[2],{'next_message_date':next_date_create(user[3])})
 
 @bot.event
 async def on_member_join(member):
+	db = connect_data_base(member.guild.name)
 	db.add_user(member.id,datetime.now()+timedelta(seconds=randint(4*60,7*60)))
 	new_player = Player(member.id,member.mention, 155)
 	new_player.add(get_items()[0])
