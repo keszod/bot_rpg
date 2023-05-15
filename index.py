@@ -268,13 +268,8 @@ async def stats(message, member=None, db=None):
 	
 	await send_embed(str(player), message.channel.id)
 
-async def give(message, db):
+async def give(member, message, db):
 	attrs = [Fire,Ice,Wind,Earth,Lightning,Plants,Light,Darkness]
-	if message.mentions != []:
-		member = message.mentions[0]
-	else:
-		member = message.author
-
 	player = db.get_player(member.id)
 	if 'attr' in message.content:
 		id_ = int(message.content.split()[2])
@@ -289,7 +284,7 @@ async def give(message, db):
 
 	await send_embed(name + f' {id_} успешно отдан', message.channel.id)
 
-async def menu(message, db):
+async def menu(message, member, db):
 	menu_buttons = [['equipment','Инвентарь'],['stats','Харак-ки'],['replays','Повторы']]
 	
 	async def menu_callback(interaction):
@@ -397,7 +392,7 @@ async def menu(message, db):
 
 	#await message.channel.send('Битва '+player.name+' с боссом '+boss.name, view=View().add_item(button))
 	view = View()
-	player = db.get_player(message.author.id)
+	player = db.get_player(member.id)
 	user = db.get_user(player.id)
 	premium = 'да' if player.premium else 'нет'
 	text = '{}\n Уровень - {}\n Опыт - {}\n Выносливоcть - {}\n Премиум - {}'.format(player.name,player.level,user[4],player.energy.value,premium)  
@@ -857,7 +852,7 @@ async def do_command(message):
 	show_data = {'runes':'runes', 'eq':'equipment', 'inv':'inventory', 'cons':'consumables', 'diff':'different','bag':'bag'}
 	try:
 		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade, 'buy':buy}
-		admin_commands = {'ban':message.guild.ban, 'mute': mute, 'give':give, 'e':change_exp_command, 'bind':bind, 'stamina':stamina}
+		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'e':change_exp_command, 'bind':bind, 'stamina':stamina}
 		commands = member_commands
 		command = message.content.split()[0]
 
@@ -891,6 +886,10 @@ async def do_command(message):
 					await stats(member=message.author, message=message, db=db)
 				elif command == 'stamina':
 					await stamina(member=message.author, message=message, db=db)
+				elif command == 'give':
+					await give(member=message.author, message=message, db=db)
+				elif command == 'menu':
+					await give(member=message.author, message=message, db=db)
 				else:
 					await member_commands[command](message=message, db=db)
 				return
