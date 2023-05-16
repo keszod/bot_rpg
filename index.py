@@ -251,7 +251,7 @@ async def equip(message, db):
 		player = db.get_player(message.author.id)
 		if player.equip(int(text)):
 			db.update_player(message.author.id, player)
-			await send_embed(f'Предмет одет', message.channel.id)
+			await send_embed(f'Предмет надет', message.channel.id)
 
 async def use(message, db):
 	text = message.content.split()[1]
@@ -267,6 +267,23 @@ async def stats(message, member=None, db=None):
 	player = db.get_player(member.id)
 	
 	await send_embed(str(player), message.channel.id)
+
+async def take(member, message, db):
+	attrs = [Fire,Ice,Wind,Earth,Lightning,Plants,Light,Darkness]
+	player = db.get_player(member.id)
+	if 'attr' in message.content:
+		name = 'Атрибут'
+		id_ = ''
+		player.magic_attribute = magic_attribute()
+	else:
+		id_ = int(message.content.split()[1])
+		item = get_items()[id_]
+		player.delete(item.id)
+		name = 'Предмет'
+	
+	db.update_player(member.id, player)
+
+	await send_embed(name + f' {id_} успешно забран', message.channel.id)
 
 async def give(member, message, db):
 	attrs = [Fire,Ice,Wind,Earth,Lightning,Plants,Light,Darkness]
@@ -288,6 +305,8 @@ async def menu(message, member, db):
 	menu_buttons = [['equipment','Инвентарь'],['stats','Харак-ки'],['replays','Повторы']]
 	
 	async def menu_callback(interaction):
+		if interaction.user != message.author:
+			return
 		custom_id = interaction.data['custom_id']
 		view = View()
 
@@ -332,7 +351,7 @@ async def menu(message, member, db):
 
 		if custom_id == 'menu':
 			premium = 'да' if player.premium else 'нет'
-			text = '{}\n Уровень - {}\n Опыт - {}\n Выносливоcть - {}\n Премиум - {}'.format(player.name,player.level,user[4],player.energy.value,premium) 
+			text = '{}\n Уровень - {}\n Опыт - {}\n Выносливоcть - {}\n Премиум - {}'.format(player.name,player.level,user[4],player.energy,premium) 
 			buttons = menu_buttons
 		
 		elif custom_id == 'equipment':
@@ -354,7 +373,6 @@ async def menu(message, member, db):
 			buttons = [['menu', 'Назад']]
 		
 		elif custom_id == 'replays':
-			global battles
 			battles = db.get_battles()
 			text = ''
 			print(battles)
@@ -367,6 +385,7 @@ async def menu(message, member, db):
 					buttons.append(['replay'+str(battle_[0]),str(battle_[0])])
 
 		elif 'replay' in custom_id:
+			battles = db.get_battles()
 			for battle_ in battles:
 				if battle_[0] == int(custom_id[-1]):
 					battle_index = [0]
@@ -395,7 +414,7 @@ async def menu(message, member, db):
 	player = db.get_player(member.id)
 	user = db.get_user(player.id)
 	premium = 'да' if player.premium else 'нет'
-	text = '{}\n Уровень - {}\n Опыт - {}\n Выносливоcть - {}\n Премиум - {}'.format(player.name,player.level,user[4],player.energy.value,premium)  
+	text = '{}\n Уровень - {}\n Опыт - {}\n Выносливоcть - {}\n Премиум - {}'.format(player.name,player.level,user[4],player.energy,premium)  
 	embed = discord.Embed(description=text, colour = discord.Colour.from_rgb(0, 255, 128))
 	all_stats = None
 	buttons = menu_buttons
@@ -706,26 +725,22 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 		if mentions != []:
 			if interaction.user in mentions and interaction.user not in accepted:
 				accepted.append(interaction.user)
+				text = interaction.message.embeds[0].description
 
 			if not len(accepted) == len(mentions):
 				text = ''
-				
-				for player in battle.members:
-					text += player.name+': Здоровье - '+str(player.health)+', Урон - '+str(player.damage.value)+'\n'
 				
 				view = View()
 
 				for user in accepted:
 					player = db.get_player(user.id)
 					
-					if not player.in_battle:
-						text += user.mention+' Готов! '
-						if battle.boss and not player.last_raid_ready:
-							text += '\n\n Предупреждение: с последнего рейда игрока {} прошло слишком мало времени. Вы уверены, что хотите сразиться? Штраф усталости 50.\n\n'.format(player.name)
-					else:
+					if player.in_battle:
 						text += user.mention+' Не может участовать в бою, так как уже в сражении'
 						time_to_exit[0] = datetime.now()+timedelta(seconds=30)
 						break
+					else:
+						text += ' '+user.mention+' Готов! '
 				else:		
 					button = Button(custom_id='battle_button', label='Начать!', style=discord.ButtonStyle.green)
 					button.callback = battle_callback
@@ -827,7 +842,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 	for player in battle.members:
 		text += player.name+': Здоровье - '+str(player.health)+', Урон - '+str(player.damage.value)
 		if type(player) != Boss:
-			text += ', Выносливоcть 🔋{}/100'.format(str(player.energy.value))
+			text += ', Выносливоcть 🔋{}/100'.format(str(player.energy))
 			
 			if battle.boss and not player.last_raid_ready:
 				text += '\n\n Предупреждение: с последнего рейда игрока {} прошло слишком мало времени. Вы уверены, что хотите сразиться? Штраф усталости 50.\n\n'.format(player.name)
@@ -852,7 +867,7 @@ async def do_command(message):
 	show_data = {'runes':'runes', 'eq':'equipment', 'inv':'inventory', 'cons':'consumables', 'diff':'different','bag':'bag'}
 	try:
 		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade, 'buy':buy}
-		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'e':change_exp_command, 'bind':bind, 'stamina':stamina}
+		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'take':take, 'e':change_exp_command, 'bind':bind, 'stamina':stamina}
 		commands = member_commands
 		command = message.content.split()[0]
 
@@ -888,6 +903,8 @@ async def do_command(message):
 					await stamina(member=message.author, message=message, db=db)
 				elif command == 'give':
 					await give(member=message.author, message=message, db=db)
+				elif command == 'take':
+					await take(member=message.author, message=message, db=db)
 				elif command == 'menu':
 					await menu(member=message.author, message=message, db=db)
 				else:

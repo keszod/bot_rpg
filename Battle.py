@@ -6,7 +6,7 @@ import os
 from random import randint
 from datetime import datetime
 
-Version = 2.51
+Version = 2.52
 battle_cool_down = 60*60
 
 drop = {0:{'minExp':200,'maxExp':300,'rune':86,'chance':5}, 1:{'minExp':300,'maxExp':400,'rune':86,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':87,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':88,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':89,'chance':5}, 5:{'minExp':1500,'maxExp':1500,'rune':90,'chance':5}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
@@ -253,16 +253,16 @@ class Player(object):
 		for attr in difines_stat:
 			#print(attr, self.__dict__[attr].value)
 			count += 1
-			value = self.__dict__[attr].value
 			text = difines_stat[attr]
+			attr = self.__dict__[attr]
 			
 			if '->' in text:
 				text = text.split('->')
 			else:
 				text = [text,'']  
 			
-			if value != 0 or count < 9:
-				str_ += text[0]+' — '+str(value)+text[1]+'\n'
+			if attr.value != 0 or count < 9:
+				str_ += text[0]+' — '+str(attr)+text[1]+'\n'
 		
 		str_ += 'Атрибут — '+self.magic_attribute.name 
 		return str_
@@ -312,6 +312,7 @@ class Player(object):
 				
 				del self.bag.items[i]
 				del self.bag.names[i]
+				del self.bag.ids[i]
 				
 				return True
 
@@ -323,6 +324,8 @@ class Player(object):
 			for i in range(len(self.items)):
 				if self.items[i] == item.id:
 					del self.items[i]
+					del self.names[i]
+					del self.ids[i]
 					break
 
 		setattr(self, name ,type(data)()) 
@@ -346,6 +349,8 @@ class Player(object):
 						return
 				
 				del self.items[i]
+				del self.names[i]
+				del self.ids[i]
 
 				self.set_stats()
 
@@ -360,18 +365,32 @@ class Player(object):
 				had_eq = self.equipment.append(self.inventory.items[i])
 				del self.inventory.items[i]
 				del self.inventory.names[i]
+				del self.inventory.ids[i]
 				
 				if had_eq:
 					self.inventory.append(had_eq)
 
 				return True
 
+	def set_items(self):
+		arsenal = [	self.equipment,self.inventory,self.runes,self.different, self.bag]
+		self.items = []
+		self.names = []
+		self.ids = []
+
+		for items in arsenal:
+			for item in items.items:
+				self.items.append(item)
+				self.names.append(item.name)
+				self.ids.append(item.id)
+
 	def set_stats(self, attribute=True, save_health=False):
 		old_health = Health(self.health.value)
 		old_bubble = Bubble(self.bubble.value)
 		self.set_default()
+		if not type(self) == Boss:
+			self.set_items()
 		arsenal = self.arsenal + [self.magic_attribute]
-		
 		#print('-----------------------------------------------')
 		for items in arsenal:
 			#print(type(items))
@@ -398,11 +417,10 @@ class Player(object):
 							upgrade_attrs.append(attr)
 					else:
 						setattr(self,attr,getattr(items,attr))
-		
 
 		for attr in upgrade_attrs:
 			value = getattr(self,attr)+ type(getattr(self,attr))(0)
-			setattr(self,attr,value)
+			setattr(self,attr,value) 
 
 		for items in self.arsenal:
 			self.make_special_effect(items)
@@ -443,9 +461,8 @@ class Player(object):
 				self.start_health = Health(self.health.value)
 				self.bubble -= math.ceil(self.bubble.value * precent//100)
 			
-			if (datetime.now() - self.last_energy_updated).seconds > battle_cool_down:
-				self.energy += self.energy_regen.value*time_left//60*60
-				
+			if time_left > 1/(self.energy_regen.value*3600):
+				self.energy += self.energy_regen.value*(time_left/3600)
 				self.last_energy_updated = datetime.now()
 
 	
@@ -461,6 +478,7 @@ class Player(object):
 			self.crit_damage = Crit_damage(400)
 		if 68 in items.ids:
 			self.damage = Damage(self.accuracy.value)
+		
 		if 69 in items.ids:
 			for i in range(0,self.defence.value,5):
 				self.damage += Damage(1)
@@ -485,7 +503,6 @@ class Player(object):
 						setattr(self, attr, stat)
 
 	def battle_special_effect(self,other):
-	
 		item = Different(id=-2, name='battle_effects')
 		for arsenal in self.arsenal[:-1]:
 			
@@ -614,8 +631,8 @@ class Player(object):
 			if darkness:
 				self.health += Health(darkness.value)
 
-			if self.health > self.max_health:
-				self.health = self.max_health
+			if self.health.value > self.max_health.value:
+				self.health = Health(self.max_health.value)
 
 			if damage.value >= other.max_health.value//2 and 83 in self.ids and type(self) != Boss:
 				other.health = Health(1)
@@ -703,6 +720,7 @@ class Items:
 				type_ = type(self.items[i]).__name__
 				del self.items[i]
 				del self.names[i]
+				del self.ids[i]
 
 				return type_
 
@@ -769,6 +787,7 @@ class Equipment(Items):
 			del self.items[index]
 			self.items = self.items
 			del self.names[index]
+			del self.ids[index]
 		
 		setattr(self,type_,item)
 
@@ -1014,6 +1033,17 @@ class Health_precent(Stat):
 	pass
 
 class Damage(Stat):
+	def __add__(self, other):		
+		if type(other) == int:
+			value = int(self.value) + other
+		else:
+			value = int(self.value) + int(other.value)
+
+		if value < 0:
+			value = 1
+
+		return type(self)(value)
+
 	def __sub__(self, other):
 		if type(other) == Defence:
 			if other.value > 95:
@@ -1023,12 +1053,17 @@ class Damage(Stat):
 			
 			value = math.ceil(self.value * (1-value*0.01))
 
-			if value <= 0:
-				value = 1
 			
-			return type(self)(value)
+		elif type(other) == int:
+			value = self.value - other
 
-		return type(self)(self.value)
+		else:
+			value = self.value - other.value
+
+		if value <= 0:
+			value = 1
+		
+		return type(self)(value)
 
 class Defence(Stat):
 	def __sub__(self, other):
@@ -1142,7 +1177,7 @@ class Adapt(Stat):
 
 class Energy(Stat):
 	def __add__(self, other):		
-		if type(other) == int:
+		if type(other) == int or type(other) == float:
 			value = int(self.value) + other
 		else:
 			value = int(self.value) + int(other.value)
@@ -1165,6 +1200,9 @@ class Energy(Stat):
 			self.value *= other.value
 
 		return type(self)(self.value)
+
+	def __str__(self):
+		return str(int(self.value))
 
 def import_from_file():
 	with open('test.txt', 'r', encoding='utf-8-sig') as file:
@@ -1196,24 +1234,22 @@ def import_from_file():
 
 
 difines_outfit = {Weapon:'Оружие', Armor:'Броня', Ring:'Кольцо', Belt:'Пояс', Pet:'Питомец', Necklace:'Ожерелье', Trophies:"Трофей", Food:"Еда", Potion:"Зелье"}
-difines_stat = {'health':'Здоровье', 'damage':'Урон', 'energy':'Выносливость->%', 'defence':'Защита', 'crit_chance':'Крит шанс->%', 'crit_damage':'Крит урон->%', 'accuracy':'Меткость->%', 'anti_defence':'Бронебробите->%', 'anti_crit':'Стойкость->%', 'vampirism':'Вампиризм->%', 'poison_damage':'Урон ядом->/ход', 'bleeding_damage':'Урон кровотечением->/ход', 'fire_damage':'Урон огнём->/ход', 'immunity':'Иммунитет', 'coagulation':'Коагуляция', 'bubble':'Божественный щит', 'stun':'Оглушение->%', 'multiplyer':'Множитель опыта->%', 'energy_regen':'Эффективность отдыха->/час'}
+difines_stat = {'health':'Здоровье', 'damage':'Урон', 'defence':'Защита', 'crit_chance':'Крит шанс->%', 'crit_damage':'Крит урон->%', 'accuracy':'Меткость->%', 'anti_defence':'Бронебробите->%', 'anti_crit':'Стойкость->%', 'vampirism':'Вампиризм->%', 'poison_damage':'Урон ядом->/ход', 'bleeding_damage':'Урон кровотечением->/ход', 'fire_damage':'Урон огнём->/ход', 'immunity':'Иммунитет', 'coagulation':'Коагуляция', 'bubble':'Божественный щит', 'stun':'Оглушение->%', 'multiplyer':'Множитель опыта->%', 'energy_regen':'Эффективность отдыха->/час'}
 
 
 if __name__ == '__main__':
 	effects = ['damage','armor_penetration','krit','vampirism','accuracy','bleeding','stamina','poison','defence']
-	items = get_items()
+	items = get_items('bosses')
+	print(items[0])
+	#exit()
 	#print(items[30])
 	
-	for item in sorted(list(items.keys())):
-		if 'bleeding' in items[item].__dict__:
-			items[item].bleeding_damage = Bleeding_damage(items[item].__dict__['bleeding'])
-			save_item(items[item])
-		
-		print(item, items[item].name)
+	#for item in sorted(list(items.keys())):
+	#	print(item, items[item].name)
 
-	print(items[87].accuracy)
-	item = items[87]
-	item.bleeding_damage = Bleeding_damage(2)
+	#print(items[602].anti_crit)
+	#item = items[87]
+	#item.bleeding_damage = Bleeding_damage(2)
 	#item.name = 'Руна жертвы'
 
 	#save_item(item)
@@ -1275,5 +1311,4 @@ if __name__ == '__main__':
 	#print(battle)
 	#battle.next()
 	#print(battle)
-	#update_bosses()
 	
