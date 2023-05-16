@@ -6,10 +6,10 @@ import os
 from random import randint
 from datetime import datetime
 
-Version = 2.31
+Version = 2.51
 battle_cool_down = 60*60
 
-drop = {0:{'minExp':0,'maxExp':0,'rune':86,'chance':5}, 1:{'minExp':300,'maxExp':400,'rune':86,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':87,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':88,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':89,'chance':5}, 5:{'minExp':1500,'maxExp':1500,'rune':90,'chance':5}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
+drop = {0:{'minExp':200,'maxExp':300,'rune':86,'chance':5}, 1:{'minExp':300,'maxExp':400,'rune':86,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':87,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':88,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':89,'chance':5}, 5:{'minExp':1500,'maxExp':1500,'rune':90,'chance':5}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
 
 def update_bosses():
 	bosses = get_items('bosses')
@@ -248,8 +248,11 @@ class Player(object):
 	def __str__(self):
 		self.set_stats()
 		str_ = ''
+		count = 0
+		
 		for attr in difines_stat:
 			#print(attr, self.__dict__[attr].value)
+			count += 1
 			value = self.__dict__[attr].value
 			text = difines_stat[attr]
 			
@@ -258,7 +261,7 @@ class Player(object):
 			else:
 				text = [text,'']  
 			
-			if value != 0:
+			if value != 0 or count < 9:
 				str_ += text[0]+' — '+str(value)+text[1]+'\n'
 		
 		str_ += 'Атрибут — '+self.magic_attribute.name 
@@ -1199,7 +1202,21 @@ difines_stat = {'health':'Здоровье', 'damage':'Урон', 'energy':'Вы
 if __name__ == '__main__':
 	effects = ['damage','armor_penetration','krit','vampirism','accuracy','bleeding','stamina','poison','defence']
 	items = get_items()
-	print(items[30])
+	#print(items[30])
+	
+	for item in sorted(list(items.keys())):
+		if 'bleeding' in items[item].__dict__:
+			items[item].bleeding_damage = Bleeding_damage(items[item].__dict__['bleeding'])
+			save_item(items[item])
+		
+		print(item, items[item].name)
+
+	print(items[87].accuracy)
+	item = items[87]
+	item.bleeding_damage = Bleeding_damage(2)
+	#item.name = 'Руна жертвы'
+
+	#save_item(item)
 	#print(items[609])
 	#print(sorted(items.keys()))
 	#print(items[609])
@@ -1213,10 +1230,10 @@ if __name__ == '__main__':
 	#item = items[609]
 	#item.name = 'Побережье'
 	#save_item(item)
-	item = items[27]
-	print(item)
-	item.damage = Damage(5)
-	save_item(item)
+	#item = items[27]
+	#print(item)
+	#item.damage = Damage(5)
+	#save_item(item)
 	#item.anti_defence = Anti_defence(0)
 	#item.damage = Damage(0)
 	#save_item(item)
