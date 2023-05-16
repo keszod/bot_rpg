@@ -6,7 +6,7 @@ import os
 from random import randint
 from datetime import datetime
 
-Version = 2.3
+Version = 2.31
 battle_cool_down = 60*60
 
 drop = {0:{'minExp':0,'maxExp':0,'rune':86,'chance':5}, 1:{'minExp':300,'maxExp':400,'rune':86,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':87,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':88,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':89,'chance':5}, 5:{'minExp':1500,'maxExp':1500,'rune':90,'chance':5}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
@@ -225,6 +225,7 @@ class Player(object):
 		self.heal = Heal(0)
 		self.energy_regen = Energy_regen(5)
 		self.defence = Defence(0)
+		self.price = Price(0)
 		self.anti_defence = Anti_defence(0)
 		self.armor_break = Armor_break(0)
 		self.crit_damage = Crit_damage(200)
@@ -248,6 +249,7 @@ class Player(object):
 		self.set_stats()
 		str_ = ''
 		for attr in difines_stat:
+			#print(attr, self.__dict__[attr].value)
 			value = self.__dict__[attr].value
 			text = difines_stat[attr]
 			
@@ -366,19 +368,22 @@ class Player(object):
 		old_bubble = Bubble(self.bubble.value)
 		self.set_default()
 		arsenal = self.arsenal + [self.magic_attribute]
+		
+		#print('-----------------------------------------------')
 		for items in arsenal:
-			print(type(items))
+			#print(type(items))
 			if Magic_attribute in inspect.getmro(type(items)):
 				if not attribute or type(self) == Boss:
 					continue
 			else:
 				items.set_stats()
-			
+		
 			enemy_attrs = []
-			
+			upgrade_attrs = []
 			for attr in items.__dict__:
 				if Stat in inspect.getmro(type(getattr(items,attr))):
 					if hasattr(self, attr):
+						print(type(items), attr, getattr(items,attr).value)
 						if 'enemy_' in attr:
 							if attr in enemy_attrs:
 								getattr(self,attr).value += getattr(items,attr).value
@@ -386,11 +391,16 @@ class Player(object):
 								setattr(self,attr,getattr(items,attr))
 								enemy_attrs.append(attr)
 						else:
-							value = getattr(self,attr) + getattr(items,attr)
-							setattr(self,attr,value)
+							getattr(self,attr).value += getattr(items,attr).value
+							upgrade_attrs.append(attr)
 					else:
 						setattr(self,attr,getattr(items,attr))
 		
+
+		for attr in upgrade_attrs:
+			value = getattr(self,attr)+ type(getattr(self,attr))(0)
+			setattr(self,attr,value)
+
 		for items in self.arsenal:
 			self.make_special_effect(items)
 
@@ -405,6 +415,7 @@ class Player(object):
 					setattr(item, stat_attr, getattr(self,attr))
 
 		self.enemy_item = item
+		#print('-----------------------------------------------')
 		
 		if self.in_battle:
 			self.health = old_health
@@ -436,6 +447,7 @@ class Player(object):
 
 	
 	def make_special_effect(self,items):
+		#print(self.damage, type(items))
 		if 51 in items.ids:
 			self.poison_damage = 0
 			self.bleeding_damage = 0
@@ -458,6 +470,7 @@ class Player(object):
 			for attr in self.__dict__:
 				basis = inspect.getmro(type(getattr(self,attr)))
 				not_include = [Bleeding_damage, Fire_damage, Stun, Multiplyer, Heal, Energy, Energy_regen]
+
 				if Stat in basis and not 'enemy_' in attr:
 					for stat in not_include:
 						if stat in basis:
@@ -465,7 +478,7 @@ class Player(object):
 					else:
 						stat = getattr(self,attr)
 						stat += type(stat)(5)
-					
+						#print(attr, stat)
 						setattr(self, attr, stat)
 
 	def battle_special_effect(self,other):
@@ -525,7 +538,7 @@ class Player(object):
 
 		self.battle_special_effect(other)
 		other.battle_special_effect(self)
-		print(self)	
+		#print(self)	
 		if self.check_rand(self.accuracy):
 			damage_text += 'Попадание!\n\n\n'
 			damage = self.damage
@@ -694,11 +707,14 @@ class Items:
 		return True
 
 	def set_stats(self):
+		self.ids = []
+		self.names = []
+		
 		for attr in self.__dict__:
 			if Stat in inspect.getmro(type(getattr(self,attr))):
 				value = type(getattr(self,attr))(0)
 				setattr(self,attr,value)
-		
+				
 		for item in self.items:
 			for attr in item.__dict__:
 				if Stat in inspect.getmro(type(getattr(item,attr))):
@@ -706,6 +722,9 @@ class Items:
 						getattr(self,attr).value += getattr(item,attr).value
 					else:
 						setattr(self,attr,getattr(item,attr))
+
+			self.ids.append(item.id)
+			self.names.append(item.name)
 
 	
 	def get_stats(self):
@@ -718,10 +737,10 @@ class Items:
 	def __str__(self):
 		text = ''
 		items_list = []
-		
 		for item in self.items:
+			#print(item, item.id)
 			if not item.name in items_list:
-				text += str(item.id)+'. '+ item.name
+				text += str(item.id)+' . '+ item.name
 
 				if self.names.count(item.name) > 1:
 					text += ' '+str(self.names.count(item.name)) + ' шт.\n'
@@ -733,6 +752,7 @@ class Items:
 		if text == '':
 			text = 'Нет предметов'
 
+		print(text)
 		return text
 
 class Equipment(Items):
@@ -758,11 +778,13 @@ class Equipment(Items):
 	def __str__(self):
 		text = ''
 		for item in self.items:
-			text += difines_outfit[type(item)] +' — '+item.name+'\n'
+			#print(item, item.id)
+			text += str(item.id)+' . '+difines_outfit[type(item)] +' — '+item.name+'\n'
 
 		if text == '':
 			text = 'Нет предметов'
-
+		
+		#print(text)
 		return text
 
 class Inventory(Items):
@@ -1177,7 +1199,7 @@ difines_stat = {'health':'Здоровье', 'damage':'Урон', 'energy':'Вы
 if __name__ == '__main__':
 	effects = ['damage','armor_penetration','krit','vampirism','accuracy','bleeding','stamina','poison','defence']
 	items = get_items()
-	print(items[28])
+	print(items[30])
 	#print(items[609])
 	#print(sorted(items.keys()))
 	#print(items[609])
@@ -1191,8 +1213,13 @@ if __name__ == '__main__':
 	#item = items[609]
 	#item.name = 'Побережье'
 	#save_item(item)
-	item = items[28]
-	print(item.anti_crit)
+	item = items[27]
+	print(item)
+	item.damage = Damage(5)
+	save_item(item)
+	#item.anti_defence = Anti_defence(0)
+	#item.damage = Damage(0)
+	#save_item(item)
 	#item.bleeding_damage = Bleeding_damage(1)
 	#save_item(item)
 	#b = Boss(id_=7, name='Сумеречный Дракон 👑', health=2500)
