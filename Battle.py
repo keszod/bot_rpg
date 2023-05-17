@@ -9,7 +9,7 @@ from datetime import datetime
 Version = 2.52
 battle_cool_down = 60*60
 
-drop = {0:{'minExp':200,'maxExp':300,'rune':86,'chance':5}, 1:{'minExp':300,'maxExp':400,'rune':86,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':87,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':88,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':89,'chance':5}, 5:{'minExp':1500,'maxExp':1500,'rune':90,'chance':5}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
+drop = {0:{'minExp':200,'maxExp':300}, 1:{'minExp':300,'maxExp':400,'rune':87,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':88,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':89,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':90,'chance':5}, 5:{'minExp':1500,'maxExp':1500}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
 
 def update_bosses():
 	bosses = get_items('bosses')
@@ -76,7 +76,9 @@ class Battle(object):
 		for player in players:
 			player.add(self.weather, self.arena)
 			player.set_stats()
+			print(player.health)
 			player.max_health = Health(player.health.value)
+			print('MAX HEALTH IS', player.max_health)
 			player.in_battle = True
 
 			if type(player) == Boss:
@@ -319,6 +321,7 @@ class Player(object):
 	def clear(self, name):
 		if not hasattr(self,name):
 			return
+		
 		data = getattr(self,name)
 		for item in data.items:
 			for i in range(len(self.items)):
@@ -373,7 +376,7 @@ class Player(object):
 				return True
 
 	def set_items(self):
-		arsenal = [	self.equipment,self.inventory,self.runes,self.different, self.bag]
+		arsenal = [self.equipment,self.inventory,self.runes,self.different, self.bag]
 		self.items = []
 		self.names = []
 		self.ids = []
@@ -385,8 +388,11 @@ class Player(object):
 				self.ids.append(item.id)
 
 	def set_stats(self, attribute=True, save_health=False):
-		old_health = Health(self.health.value)
-		old_bubble = Bubble(self.bubble.value)
+		if self.in_battle and 'max_health' in self.__dict__:
+			old_max_health = Health(self.max_health.value)
+			old_health = Health(self.health.value)
+			old_bubble = Bubble(self.bubble.value)
+		
 		self.set_default()
 		if not type(self) == Boss:
 			self.set_items()
@@ -405,7 +411,7 @@ class Player(object):
 			for attr in items.__dict__:
 				if Stat in inspect.getmro(type(getattr(items,attr))):
 					if hasattr(self, attr):
-						print(type(items), attr, getattr(items,attr).value)
+						#print(type(items), attr, getattr(items,attr).value)
 						if 'enemy_' in attr:
 							if attr in enemy_attrs:
 								getattr(self,attr).value += getattr(items,attr).value
@@ -438,9 +444,10 @@ class Player(object):
 		self.enemy_item = item
 		#print('-----------------------------------------------')
 		
-		if self.in_battle:
+		if self.in_battle and 'max_health' in self.__dict__:
 			self.health = old_health
 			self.bubble = old_bubble
+			self.max_health = old_max_health
 		else:
 			if self.last_raid:
 				self.last_raid_ready = (datetime.now() - self.last_raid).seconds > battle_cool_down
@@ -469,8 +476,8 @@ class Player(object):
 	def make_special_effect(self,items):
 		#print(self.damage, type(items))
 		if 51 in items.ids:
-			self.poison_damage = 0
-			self.bleeding_damage = 0
+			self.poison_damage = Poison_damage(0)
+			self.bleeding_damage = Bleeding_damage(0)
 		if 56 in items.ids:
 			self.crit_damage = Crit_damage(250)
 		if 66 in items.ids:
@@ -631,9 +638,6 @@ class Player(object):
 			if darkness:
 				self.health += Health(darkness.value)
 
-			if self.health.value > self.max_health.value:
-				self.health = Health(self.max_health.value)
-
 			if damage.value >= other.max_health.value//2 and 83 in self.ids and type(self) != Boss:
 				other.health = Health(1)
 			else:
@@ -641,6 +645,12 @@ class Player(object):
 
 		if other.health.value <= 0 and (not damage or hand_damage.value == 0):
 			other.health = Health(1)
+
+		print('MAX HEALTH IS',self.max_health)
+
+		if self.health.value > self.max_health.value:
+			self.health = Health(self.max_health.value)
+		
 		text += '\n\n'
 		if other.health.value != 0:
 			text +=  'У '+ other.name+' '+str(other.health.value)+' '+declination(other.health.value, 'здоровь',['е','я','я'])
@@ -773,7 +783,7 @@ class Items:
 		if text == '':
 			text = 'Нет предметов'
 
-		print(text)
+		#print(text)
 		return text
 
 class Equipment(Items):

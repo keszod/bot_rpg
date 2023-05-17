@@ -144,6 +144,14 @@ async def stamina(member, message, db=None):
 
 	await send_embed('Выносливоcть изменена', message.channel.id)
 
+
+async def battle_over(member, message, db=None):
+	player = db.get_player(member.id)
+	player.in_battle = False
+	db.update_player(player.id, player)
+
+	await send_embed('Вне битвы', message.channel.id)
+
 async def change_exp_command(member, message, db=None):
 	data = ''.join(message.content.split()[1:]).replace('+','').replace('- ','-')
 	data = re.search('[\+\-]*\d+', data).group(0).strip()
@@ -152,8 +160,11 @@ async def change_exp_command(member, message, db=None):
 	await change_exp(user,int(data), db=db)
 	await send_embed('У '+member.mention+' опыт был успешно изменён', channel=message.channel.id)
 
-async def know_exp(message, self_call=False, db=None):
-	member = message.author
+async def know_exp(message, mentions, self_call=False, db=None):
+	if self_call:
+		member = message.author
+	else:
+		member = mentions[0]
 	if not self_call:
 		ds_user = 'У '+str(member.mention)+' '
 	else:
@@ -348,7 +359,7 @@ async def menu(message, member, db):
 			battle_index[0] = len(battle[0].history) - 1 
 			await change_str(interaction)
 
-
+		text = ''
 		if custom_id == 'menu':
 			premium = 'да' if player.premium else 'нет'
 			text = '{}\n Уровень - {}\n Опыт - {}\n Выносливоcть - {}\n Премиум - {}'.format(player.name,player.level,user[4],player.energy,premium) 
@@ -386,13 +397,13 @@ async def menu(message, member, db):
 
 		elif 'replay' in custom_id:
 			battles = db.get_battles()
+			custom_id = custom_id.replace('replay', '')
 			for battle_ in battles:
-				if battle_[0] == int(custom_id[-1]):
+				if battle_[0] == int(custom_id):
+					print(int(custom_id[-1]))
 					battle_index = [0]
 					battle = [battle_[-1]]
 					await change_str(interaction)
-			
-		#elif custom_id == ''
 		
 		text = text.replace('\nНет предметов','')
 		if len(text.splitlines()) == 1:
@@ -504,7 +515,7 @@ async def trade(message, mentions, db):
 	if len(text.split()) == 2:
 		full_exp = int(text.split()[1])
 		if int(give_user[4]) >= int(full_exp):
-			exp = int(full_exp*0.7)
+			exp = int(full_exp*0.8)
 			answer = 'С учётом комисии вы переведёте {} пользователю {}. Вы согласны?'.format(exp, mention.mention)
 			should_accept = [message.author]
 			
@@ -528,7 +539,7 @@ async def trade(message, mentions, db):
 		elif int(take_user[4]) < full_exp:
 			answer = 'У пользователя недостаточно опыта для покупки'
 		else:
-			exp = int(full_exp*0.7)
+			exp = int(full_exp*0.8)
 			answer = 'С учётом комисии вы продадите предмет {} пользователю {} за {}, ваша выручка {}. Вы согласны?'.format(id_,mention.mention, full_exp, exp)
 			should_accept = [message.author, mentions[0]]
 			
@@ -688,7 +699,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 					else:
 						text += ' опыт не получен.'
 					
-					text += f' Потрачено выносливоcти 🔋{energy}.'
+					text += f' Потрачено  🔋{energy}.'
 					db_player.energy -= energy
 
 					text += '\n'
@@ -728,8 +739,6 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 				text = interaction.message.embeds[0].description
 
 			if not len(accepted) == len(mentions):
-				text = ''
-				
 				view = View()
 
 				for user in accepted:
@@ -815,12 +824,12 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 			if player.energy.value <= 30:
 				text = 'Битва не может быть начата, так как у игрока {} накопилась усталость 😪'.format(player.name)
 			elif not player.last_raid_ready and boss:
-				text = 'Прошло слишком мало веремени с последнего рейда {}'.format(player.name)
+				text = 'Прошло слишком мало времени с последнего рейда {}'.format(player.name)
 			else:
 				cnacel = False			
 
 		if cnacel:
-			message = await cancel_battle(message.channel.send, player, text)
+			await cancel_battle(message.channel.send, player, text)
 			return
 	
 		if not user in added_users:
@@ -842,7 +851,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 	for player in battle.members:
 		text += player.name+': Здоровье - '+str(player.health)+', Урон - '+str(player.damage.value)
 		if type(player) != Boss:
-			text += ', Выносливоcть 🔋{}/100'.format(str(player.energy))
+			text += ',  🔋{}/100'.format(str(player.energy))
 			
 			if battle.boss and not player.last_raid_ready:
 				text += '\n\n Предупреждение: с последнего рейда игрока {} прошло слишком мало времени. Вы уверены, что хотите сразиться? Штраф усталости 50.\n\n'.format(player.name)
@@ -867,7 +876,7 @@ async def do_command(message):
 	show_data = {'runes':'runes', 'eq':'equipment', 'inv':'inventory', 'cons':'consumables', 'diff':'different','bag':'bag'}
 	try:
 		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade, 'buy':buy}
-		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'take':take, 'e':change_exp_command, 'bind':bind, 'stamina':stamina}
+		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'take':take, 'e':change_exp_command, 'bind':bind, 'stamina':stamina, 'battle_over':battle_over}
 		commands = member_commands
 		command = message.content.split()[0]
 
@@ -896,11 +905,13 @@ async def do_command(message):
 			
 			if mentions == []:
 				if command == 'exp':
-					await know_exp(message=message, self_call=True, db=db)
+					await know_exp(message=message, mentions=[], self_call=True, db=db)
 				elif command == 'str':
 					await stats(member=message.author, message=message, db=db)
 				elif command == 'stamina':
 					await stamina(member=message.author, message=message, db=db)
+				elif command == 'battle_over':
+					await battle_over(member=message.author, message=message, db=db)
 				elif command == 'give':
 					await give(member=message.author, message=message, db=db)
 				elif command == 'take':
@@ -922,7 +933,9 @@ async def do_command(message):
 			elif command == 'trade':
 				await trade(message, mentions, db=db)
 				return
-
+			elif command == 'exp':
+				await know_exp(message, mentions, db=db)
+				return
 			for user_ in mentions:
 				try:
 					await member_commands[command](member=user_,message=message, db=db)
@@ -943,6 +956,7 @@ async def do_command(message):
 async def on_message(message):	
 	prefix = bot_data['prefix']
 	db = connect_data_base(message.guild.name)
+	print(message.author.id, message.content)
 	if message.author == bot.user:
 		return
 	
@@ -956,8 +970,9 @@ async def on_message(message):
 
 
 	if message.content[0] == prefix:
-		if await do_command(message):
-			return
+		await do_command(message)
+		print('hiiiiiiiiiiii')
+		return
 	
 	user = db.get_user(message.author.id)
 
@@ -971,11 +986,12 @@ async def on_message(message):
 @bot.event
 async def on_member_join(member):
 	db = connect_data_base(member.guild.name)
-	db.add_user(member.id,datetime.now()+timedelta(seconds=randint(4*60,7*60)))
-	new_player = Player(member.id,member.mention, 155)
-	new_player.add(get_items()[0])
-	db.add_player(member.id, new_player)
-	await send_embed('Добро пожаловать, '+member.mention)
+	if not db.user_exists(member.id):
+		db.add_user(member.id,datetime.now()+timedelta(seconds=randint(4*60,7*60)))
+		new_player = Player(member.id,member.mention, 155)
+		new_player.add(get_items()[0])
+		db.add_player(member.id, new_player)
+		await send_embed('Добро пожаловать, '+member.mention)
 
 if __name__ == '__main__':
 	global prefix
