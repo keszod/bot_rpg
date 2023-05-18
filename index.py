@@ -324,6 +324,69 @@ def last_raid_in_time(last_raid):
 	else:
 		'давно'
 
+
+async def replay(interaction, battle, is_fav=False, db=None):
+	async def add_to_fov(interaction):
+		player = db.get_player(interaction.user.id)
+		print(battle[0].id)
+		if not battle[0].id in player.favorite:
+			player.favorite.append(battle[0].id)
+			db.update_player(interaction.user.id, player)
+			channel = interaction.channel
+			message = await send_embed('Добавлено', channel.id)
+			await interaction.response.edit_message(embed=interaction.message.embeds[0])
+			await delete_message_on_time(message, 20)
+
+		return
+
+	async def change_str(interaction):
+		buttons = []
+		view=View()
+		data = []
+		
+		if battle_index[0] > 0:
+			data += [['first','<<-', 1, first_callback], ['back', '<-', 1, back_callback]]
+		
+		if battle_index[0] < len(battle[0].history)-1:
+			data += [['next', '->', 1, next_callback], ['last', '->>', 1, last_callback]]	
+
+		if not is_fav:
+			data += [['add_fov', 'В избранное⭐', 2, add_to_fov]]
+
+		for element in data:
+			button = Button(custom_id=element[0], label=element[1], row=element[2], style=discord.ButtonStyle.green)
+			button.callback = element[3]
+			view.add_item(button)
+
+		embed = discord.Embed(description=battle[0].history[battle_index[0]], colour = discord.Colour.from_rgb(0, 255, 128))
+
+		if not interaction.response.is_done():
+			await interaction.response.edit_message(embed=embed, view=view )
+		else:
+			await interaction.message.edit(embed=embed, view=view)
+		
+		return
+
+	async def back_callback(interaction):
+		battle_index[0] -= 1
+		await change_str(interaction)
+
+	async def next_callback(interaction):
+		battle_index[0] += 1
+		await change_str(interaction)
+
+	async def first_callback(interaction):
+		battle_index[0] = 0
+		await change_str(interaction)
+
+	async def last_callback(interaction):
+		battle_index[0] = len(battle[0].history) - 1 
+		await change_str(interaction)
+
+	battle_index = [len(battle.history)-1]
+	battle = [battle]
+	await change_str(interaction)
+
 async def menu(message, member, db):
 	menu_buttons = [['equipment','Инвентарь'],['stats','Харак-ки'],['replays','Повторы']]
 	
@@ -333,46 +396,9 @@ async def menu(message, member, db):
 		custom_id = interaction.data['custom_id']
 		view = View()
 
-		async def change_str(interaction):
-			buttons = []
-			view=View()
-			data = []
-			
-			if battle_index[0] > 0:
-				data += [['first','<<-', 1, first_callback], ['back', '<-', 1, back_callback]]
-			
-			if battle_index[0] < len(battle[0].history)-1:
-				data += [['next', '->', 1, next_callback], ['last', '->>', 1, last_callback]]	
-
-			for element in data:
-				button = Button(custom_id=element[0], label=element[1], row=element[2], style=discord.ButtonStyle.green)
-				button.callback = element[3]
-				view.add_item(button)
-
-			embed = discord.Embed(description=battle[0].history[battle_index[0]], colour = discord.Colour.from_rgb(0, 255, 128))
-
-			await interaction.response.edit_message(embed=embed, view=view)
-
-			return
-	
-		async def back_callback(interaction):
-			battle_index[0] -= 1
-			await change_str(interaction)
-
-		async def next_callback(interaction):
-			battle_index[0] += 1
-			await change_str(interaction)
-
-		async def first_callback(interaction):
-			battle_index[0] = 0
-			await change_str(interaction)
-
-		async def last_callback(interaction):
-			battle_index[0] = len(battle[0].history) - 1 
-			await change_str(interaction)
-
 		text = ''
 		buttons = []
+		print(custom_id)
 		if custom_id == 'menu':
 			premium = 'да' if player.premium else 'нет'
 			text = main_text
@@ -401,6 +427,7 @@ async def menu(message, member, db):
 			text = ''
 			print(battles)
 			print(player.favorite)
+			print(player.favorite)
 			buttons = [['menu', 'Назад']]
 
 			for battle_ in battles:
@@ -413,10 +440,8 @@ async def menu(message, member, db):
 			custom_id = custom_id.replace('replay', '')
 			for battle_ in battles:
 				if battle_[0] == int(custom_id):
-					print(int(custom_id[-1]))
-					battle_index = [0]
-					battle = [battle_[-1]]
-					await change_str(interaction)
+					await replay(interaction, battle_[-1], is_fav=True, db=db)
+					return
 		
 		text = text.replace('\nНет предметов','')
 		if len(text.splitlines()) == 1:
@@ -619,58 +644,6 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 
 		# Кнопки назад вперёд
 
-		async def add_to_fov(interaction):
-			player = db.get_player(interaction.user.id)
-			print(battle.id)
-			if not battle.id in player.favorite:
-				player.favorite.append(battle.id)
-				db.update_player(interaction.user.id, player)
-				channel = interaction.channel
-				message = await send_embed('Добавлено', channel.id)
-				await interaction.response.edit_message(embed=interaction.message.embeds[0])
-				await delete_message_on_time(message, 20)
-
-			return
-		
-		async def change_str(interaction):
-			buttons = []
-			view=View()
-			data = []
-			
-			if battle_index[0] > 0:
-				data += [['first','<<-', 1, first_callback], ['back', '<-', 1, back_callback]]
-			
-			if battle_index[0] < len(battle.history) - 1:
-				data += [['next', '->', 1, next_callback], ['last', '->>', 1, last_callback]]	
-			
-			data.append(['add_to_fovorite', 'Добавить в избранное', 2, add_to_fov])
-			for element in data:
-				button = Button(custom_id=element[0], label=element[1], row=element[2], style=discord.ButtonStyle.green)
-				button.callback = element[3]
-				view.add_item(button)
-
-			embed = discord.Embed(description=battle.history[battle_index[0]], colour = discord.Colour.from_rgb(0, 255, 128))
-
-			await interaction.response.edit_message(embed=embed, view=view)
-
-			return
-	
-		async def back_callback(interaction):
-			battle_index[0] -= 1
-			await change_str(interaction)
-
-		async def next_callback(interaction):
-			battle_index[0] += 1
-			await change_str(interaction)
-
-		async def first_callback(interaction):
-			battle_index[0] = 0
-			await change_str(interaction)
-
-		async def last_callback(interaction):
-			battle_index[0] = len(battle.history) - 1 
-			await change_str(interaction)
-
 		async def end_battle(edit, reward=True):
 			text = battle.message+'\n'
 			survived_players = battle.players[:]
@@ -727,16 +700,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 
 					db.update_player(player.id, db_player)
 
-
-			data = [['first','<<-', 1, first_callback], ['back','<-', 1, back_callback]]
-			data.append(['add_to_fovorite', 'Добавить в избранное', 2, add_to_fov])
-			view=View()
-
-			for element in data:
-				button = Button(custom_id=element[0], label=element[1], row=element[2], style=discord.ButtonStyle.green)
-				button.callback = element[3]
-				view.add_item(button)
-				
+			view = None				
 			id_ = db.add_battle(battle)
 			print(id_)
 			battle.id = id_
@@ -744,7 +708,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 			
 			embed = discord.Embed(description=text, colour = discord.Colour.from_rgb(0, 255, 128))
 			await edit(embed=embed,view=view)
-			
+			await replay(interaction, battle, db=db)
 			return
 
 		#Код битвы
@@ -918,17 +882,19 @@ async def do_command(message):
 						return
 				else:
 					member_commands = member_commands | admin_commands
-			
+			print(command)
 			if mentions == []:
 				if command in self_or_others_command:
+					print('ddd')
 					await member_commands[command](member=message.author, message=message, db=db)
-				return
+					return
 			
-			elif command == 'raid':
+			if command == 'raid':
+				print('here')
 				await raid(message, mentions, db=db)
 				return
 
-			elif command == 'duel':
+			if command == 'duel':
 				await duel(message, mentions, db=db)
 				return
 			
