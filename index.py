@@ -440,7 +440,7 @@ async def menu(message, member, db):
 
 
 async def duel(message, mentions=[], db=None):
-	await do_battle(message,mentions=mentions, db=db, boss=message.content.split()[1])
+	await do_battle(message,mentions=mentions, db=db, boss=None)
 
 async def delete_message_on_time(message,time:int):
 	time = datetime.now() + timedelta(seconds=time)

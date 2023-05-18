@@ -173,11 +173,12 @@ class SQLighter:
 			if Version != player.version:
 				new_player = Player(player.id, player.name, player.health.value)
 				atr = player.magic_attribute
-				items = get_items()
+				all_items = get_items()
 				
-				for item in player.items:
-					if item.id in items:
-						new_player.add(items[int(item.id)])
+				for items in [player.inventory, player.bag, player.equipment, player.runes, player.consumables, player.different]:
+					for item in items.items:
+						if item.id in all_items:
+							new_player.add(all_items[int(item.id)])
 
 				new_player.magic_attribute = player.magic_attribute
 				new_player.last_raid = player.last_raid

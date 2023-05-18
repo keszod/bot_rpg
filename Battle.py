@@ -6,7 +6,7 @@ import os
 from random import randint
 from datetime import datetime
 
-Version = 2.52
+Version = 2.54
 battle_cool_down = 60*60
 
 drop = {0:{'minExp':200,'maxExp':300}, 1:{'minExp':300,'maxExp':400,'rune':87,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':88,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':89,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':90,'chance':5}, 5:{'minExp':1500,'maxExp':1500}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
@@ -225,6 +225,8 @@ class Player(object):
 		self.health = Health(int(self.level) + int(self.level)**2//10)
 		self.damage = Damage(10)
 		self.heal = Heal(0)
+		self.damage_precent = Damage_precent(0)
+		self.health_precent = Health_precent(0)
 		self.energy_regen = Energy_regen(5)
 		self.defence = Defence(0)
 		self.price = Price(0)
@@ -279,6 +281,7 @@ class Player(object):
 		self.bag = Bag()
 
 		self.arsenal = [self.equipment, self.runes, self.consumables, self.different, self.in_battle_effects]
+		self.order = [self.inventory, self.bag, self.equipment, self.runes, self.consumables, self.different]
 
 	def add(self, *args):
 		for item in args:
@@ -442,6 +445,8 @@ class Player(object):
 					setattr(item, stat_attr, getattr(self,attr))
 
 		self.enemy_item = item
+		self.damage += self.damage_precent.value*self.damage.value//100
+		
 		#print('-----------------------------------------------')
 		
 		if self.in_battle and 'max_health' in self.__dict__:
@@ -454,6 +459,7 @@ class Player(object):
 			else:
 				self.last_raid_ready = True
 			
+			self.health += self.health_precent.value*self.health.value//100
 			time_left = (datetime.now() - self.last_energy_updated).seconds
 			
 			if self.energy.value != 100:
@@ -463,7 +469,7 @@ class Player(object):
 					precent = 30
 				else:
 					precent = 50
-				
+
 				self.health -= math.ceil(self.health.value * precent//100)
 				self.start_health = Health(self.health.value)
 				self.bubble -= math.ceil(self.bubble.value * precent//100)
@@ -599,7 +605,7 @@ class Player(object):
 		bleeding_damage = other.bleeding_damage_per_move - other.coagulation
 		damages = [poison_damage, bleeding_damage, other.fire_damage_per_move]
 
-		if self.darkness_awaits.value == True:
+		if self.darkness_awaits.value:
 			damages_name = ['тёмной энергией и столько же восстановлено','кровотечением','огнём']
 		else:
 			damages_name = ['ядом','кровотечением','огнём']
@@ -609,8 +615,8 @@ class Player(object):
 				damage += damages[i].value
 				text += '{} {} {} {}\n\n'.format(declination(damages[i].value, 'Нанес',['ён','ено','ено']), damages[i], declination(damages[i].value, 'урон',['','а','а']), damages_name[i])
 
-				if damages_name == 'тёмной энергией и столько же восстановлено':
-					darkness = damages[i].value
+				if self.darkness_awaits.value and i == 0:
+					darkness = Damage(damages[i].value)
 
 		print('Другие',hand_damage)
 		
@@ -676,6 +682,8 @@ class Boss(Player):
 		self.health = self.start_health
 		self.damage = Damage(0)
 		self.heal = Heal(0)
+		self.damage_precent = Damage_precent(0)
+		self.health_precent = Health_precent(0)
 		self.defence = Defence(0)
 		self.anti_defence = Anti_defence(0)
 		self.armor_break = Armor_break(0)
@@ -1250,7 +1258,7 @@ difines_stat = {'health':'Здоровье', 'damage':'Урон', 'defence':'З�
 if __name__ == '__main__':
 	effects = ['damage','armor_penetration','krit','vampirism','accuracy','bleeding','stamina','poison','defence']
 	items = get_items('bosses')
-	print(items[0])
+	#print(items[3])
 	#exit()
 	#print(items[30])
 	
@@ -1291,6 +1299,15 @@ if __name__ == '__main__':
 	#print(b.crit_damage)
 	#item = Rune(id=0, price=0, rating='Мифический', name='Руна новичка', accuracy=10, damage=5)
 	#save_item(b,'bosses')
+	bosses = get_items('bosses')
+	bosses[4].items[0].bleeding_damage = Bleeding_damage(5)
+	bosses[4].different.items[0].bleeding_damage = Bleeding_damage(5)
+	
+	#bosses[4].set_stats()
+	#print(bosses[4])
+	#bosses[4].different.items[0].poison_damage = Poison_damage(0)
+	#print(bosses[4].items)
+	#save_item(bosses[4], 'bosses')
 	#p = Player(id_=11, name='Витя', health=0)
 	#p.level = 50
 	#item = Weapon(id=1,name='Огонь',damage=15)
@@ -1317,7 +1334,7 @@ if __name__ == '__main__':
 	#print(items.keys())
 	#item = Rune(id=0, name='Руна новичка', accuracy=5, price=0)
 	#save_item(item)
-	#update_bosses()
+	update_bosses()
 	#print(battle)
 	#battle.next()
 	#print(battle)
