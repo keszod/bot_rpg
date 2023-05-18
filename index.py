@@ -327,10 +327,10 @@ async def menu(message, member, db):
 			data = []
 			
 			if battle_index[0] > 0:
-				data += [['first','В начало', 1, first_callback], ['back', '<-', 1, back_callback]]
+				data += [['first','<<-', 1, first_callback], ['back', '<-', 1, back_callback]]
 			
 			if battle_index[0] < len(battle[0].history)-1:
-				data += [['next', '->', 1, next_callback], ['last', 'В конец', 1, last_callback]]	
+				data += [['next', '->', 1, next_callback], ['last', '->>', 1, last_callback]]	
 
 			for element in data:
 				button = Button(custom_id=element[0], label=element[1], row=element[2], style=discord.ButtonStyle.green)
@@ -360,6 +360,7 @@ async def menu(message, member, db):
 			await change_str(interaction)
 
 		text = ''
+		buttons = []
 		if custom_id == 'menu':
 			premium = 'да' if player.premium else 'нет'
 			text = '{}\n Уровень - {}\n Опыт - {}\n Выносливоcть - {}\n Премиум - {}'.format(player.name,player.level,user[4],player.energy,premium) 
@@ -625,10 +626,10 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 			data = []
 			
 			if battle_index[0] > 0:
-				data += [['first','В начало', 1, first_callback], ['back', '<-', 1, back_callback]]
+				data += [['first','<<-', 1, first_callback], ['back', '<-', 1, back_callback]]
 			
 			if battle_index[0] < len(battle.history) - 1:
-				data += [['next', '->', 1, next_callback], ['last', 'В конец', 1, last_callback]]	
+				data += [['next', '->', 1, next_callback], ['last', '->>', 1, last_callback]]	
 			
 			data.append(['add_to_fovorite', 'Добавить в избранное', 2, add_to_fov])
 			for element in data:
@@ -715,7 +716,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 					db.update_player(player.id, db_player)
 
 
-			data = [['first','В начало', 1, first_callback], ['back','<-', 1, back_callback]]
+			data = [['first','<<-', 1, first_callback], ['back','<-', 1, back_callback]]
 			data.append(['add_to_fovorite', 'Добавить в избранное', 2, add_to_fov])
 			view=View()
 

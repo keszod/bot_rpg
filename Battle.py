@@ -233,7 +233,7 @@ class Player(object):
 		self.anti_defence = Anti_defence(0)
 		self.armor_break = Armor_break(0)
 		self.crit_damage = Crit_damage(200)
-		self.crit_chance = Crit_chance(10)
+		self.crit_chance = Crit_chance(-50)
 		self.anti_crit = Anti_crit(0)
 		self.other_anti_crit = Anti_crit(0) 
 		self.stun = Stun(50)
@@ -575,6 +575,7 @@ class Player(object):
 		if self.check_rand(self.accuracy):
 			damage_text += 'Попадание!\n\n\n'
 			damage = self.damage
+			print('FFFFFFFFFF', damage)
 			
 			if self.check_rand(self.crit_chance - other.anti_crit):
 				damage = Damage((self.crit_damage - (other.anti_crit-self.other_anti_crit)).value//100*damage.value)
@@ -586,7 +587,8 @@ class Player(object):
 						other.stuned = True
 						damage_text += 'Ошеломление!\n\n'
 				
-			damage = damage - (other.defence - self.anti_defence)
+			print(other.defence, self.anti_defence, other.defence - self.anti_defence, 'Туууууууууууууууут')
+			damage -= (other.defence - self.anti_defence)
 
 			if other.bubble.value > 0 and damage:
 				other.bubble -= Bubble(1)
@@ -1069,10 +1071,11 @@ class Damage(Stat):
 			else:
 				value = other.value
 			
+			print(1-value*0.01)
 			value = math.ceil(self.value * (1-value*0.01))
-
-			
-		elif type(other) == int:
+			print(value)
+		
+		elif type(other) == int or type(other) == float:
 			value = self.value - other
 
 		else:
@@ -1093,9 +1096,12 @@ class Defence(Stat):
 			
 			value = math.ceil(self.value * (1-value*0.01))
 			
-			return type(self)(value)
+		elif type(other) == int or type(other) == float:
+			value = self.value - other
+		else:
+			value = self.value - other.value
 
-		return type(self)(self.value)
+		return type(self)(value)
 
 class Anti_defence(Stat):
 	pass
