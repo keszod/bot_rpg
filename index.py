@@ -497,7 +497,7 @@ async def raid(message, mentions=[],  db=None):
 
 	await do_battle(message,mentions=mentions, db=db, boss=message.content.split()[1])
 
-async def trade(message, mentions, db):
+async def trade(member, message, db):
 	async def accept_callback(interaction):
 		if interaction.user in should_accept and interaction.user not in accepted:
 			accepted.append(interaction.user)
@@ -509,7 +509,7 @@ async def trade(message, mentions, db):
 				return
 
 		message = interaction.message
-		take_user = db.get_user(mentions[0].id)
+		take_user = db.get_user(member.id)
 
 		if deal == 'give':
 			if give_user[4] >= full_exp:
@@ -541,12 +541,12 @@ async def trade(message, mentions, db):
 		await message.edit(embed=embed, view=None)
 
 	
-	text = message.content
+	text = str(message.content)
 	accepted = []
 	view = View()
 	give_user = db.get_user(message.author.id)
-
-	for mention in mentions:
+	
+	for mention in message.mentions:
 		text = text.replace(mention.mention,'').strip()
 	
 	print(text)
@@ -554,7 +554,7 @@ async def trade(message, mentions, db):
 		full_exp = int(text.split()[1])
 		if int(give_user[4]) >= int(full_exp):
 			exp = int(full_exp*0.8)
-			answer = 'С учётом комисии вы переведёте {} пользователю {}. Вы согласны?'.format(exp, mention.mention)
+			answer = 'С учётом комисии вы переведёте {} пользователю {}. Вы согласны?'.format(exp, member.mention)
 			should_accept = [message.author]
 			
 			button = Button(custom_id='accept', label='Согласен', row=1, style=discord.ButtonStyle.green)
@@ -568,7 +568,7 @@ async def trade(message, mentions, db):
 	elif len(text.split()) == 3:
 		id_, full_exp = message.content.split()[1:3]
 		full_exp, id_ = int(full_exp), int(id_)
-		take_user = db.get_user(mentions[0].id)
+		take_user = db.get_user(member.id)
 		
 		player = db.get_player(message.author.id)
 
@@ -578,8 +578,8 @@ async def trade(message, mentions, db):
 			answer = 'У пользователя недостаточно опыта для покупки'
 		else:
 			exp = int(full_exp*0.8)
-			answer = 'С учётом комисии вы продадите предмет {} пользователю {} за {}, ваша выручка {}. Вы согласны?'.format(id_,mention.mention, full_exp, exp)
-			should_accept = [message.author, mentions[0]]
+			answer = 'С учётом комисии вы продадите предмет {} пользователю {} за {}, ваша выручка {}. Вы согласны?'.format(id_,member.mention, full_exp, exp)
+			should_accept = [message.author, member]
 			
 			button = Button(custom_id='accept', label='Согласен', row=1, style=discord.ButtonStyle.green)
 			button.callback = accept_callback
@@ -589,7 +589,9 @@ async def trade(message, mentions, db):
 	embed = discord.Embed(description=answer, colour = discord.Colour.from_rgb(0, 255, 128))
 
 	await message.channel.send(embed=embed, view=view)
-	await delete_message_on_time(message, 60*3)
+	task = asyncio.create_task(delete_message_on_time(message, 60*3))
+
+	return
 
 async def do_battle(message, mentions=[], db=None, boss=None):
 	accepted = []
@@ -856,7 +858,7 @@ async def do_command(message):
 	try:
 		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade, 'buy':buy}
 		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'take':take, 'e':change_exp_command, 'bind':bind, 'stamina':stamina, 'battle_over':battle_over}
-		self_or_others_command = ['exp','str', 'stamina', 'battle_over', 'give', 'take', 'menu']
+		self_or_others_command = ['exp','e','str', 'stamina', 'battle_over', 'give', 'take', 'menu']
 		commands = member_commands
 		command = message.content.split()[0]
 
@@ -898,8 +900,9 @@ async def do_command(message):
 				await duel(message, mentions, db=db)
 				return
 			
-			for user_ in mentions:
+			for user_ in message.mentions:
 				try:
+					print(user_, 'hiiiiiiiiidd')
 					await member_commands[command](member=user_,message=message, db=db)
 				except:
 					traceback.print_exc()
