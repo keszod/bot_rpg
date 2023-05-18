@@ -694,7 +694,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 						energy = 50
 
 					if exp > 0:
-						exp *= player.vultiplyer.value/100
+						exp *= player.multiplyer.value/100
 						exp = int(exp)
 						await change_exp(db.get_user(db_player.id), exp, db=db)
 						text += f' получено {exp} опыта.'
