@@ -160,15 +160,11 @@ async def change_exp_command(member, message, db=None):
 	await change_exp(user,int(data), db=db)
 	await send_embed('У '+member.mention+' опыт был успешно изменён', channel=message.channel.id)
 
-async def know_exp(message, mentions, self_call=False, db=None):
-	if self_call:
-		member = message.author
-	else:
-		member = mentions[0]
-	if not self_call:
-		ds_user = 'У '+str(member.mention)+' '
-	else:
+async def know_exp(member, message, db=None):
+	if member.id == message.author.id:
 		ds_user = 'У вас '
+	else:
+		ds_user = 'У '+str(member.mention)+' '
 	
 	user = db.get_user(member.id)
 
@@ -312,6 +308,22 @@ async def give(member, message, db):
 
 	await send_embed(name + f' {id_} успешно отдан', message.channel.id)
 
+def last_raid_in_time(last_raid):
+	if not last_raid:
+		return 'давно'
+	last_raid = (datetime.now() - last_raid).seconds
+
+	if last_raid < 60:
+		return '{} {} назад'.format(last_raid,declination('секунд', last_raid, ['у', 'ы', '']))
+	elif last_raid < 3600:
+		return '{} {} назад'.format(last_raid//60,declination('минут', last_raid//60, ['у', 'ы', '']))
+	elif last_raid < 3600*24:
+		hours = last_raid//3600
+		minutes = (last_raid - hours)//60
+		return '{} {} {} {} назад'.format(hours,declination('час', hours, ['', 'а', 'ов']), minutes,declination('минут', minutes, ['у', 'ы', '']))
+	else:
+		'давно'
+
 async def menu(message, member, db):
 	menu_buttons = [['equipment','Инвентарь'],['stats','Харак-ки'],['replays','Повторы']]
 	
@@ -363,7 +375,7 @@ async def menu(message, member, db):
 		buttons = []
 		if custom_id == 'menu':
 			premium = 'да' if player.premium else 'нет'
-			text = '{}\n Уровень - {}\n Опыт - {}\n Выносливоcть - {}\n Премиум - {}'.format(player.name,player.level,user[4],player.energy,premium) 
+			text = main_text
 			buttons = menu_buttons
 		
 		elif custom_id == 'equipment':
@@ -426,8 +438,8 @@ async def menu(message, member, db):
 	player = db.get_player(member.id)
 	user = db.get_user(player.id)
 	premium = 'да' if player.premium else 'нет'
-	text = '{}\n Уровень - {}\n Опыт - {}\n Выносливоcть - {}\n Премиум - {}'.format(player.name,player.level,user[4],player.energy,premium)  
-	embed = discord.Embed(description=text, colour = discord.Colour.from_rgb(0, 255, 128))
+	main_text = '{}\n Уровень — {}\n Опыт — {} / {}\n Выносливоcть — {}\n Премиум — {}\n\n Последний рейд — {}'.format(player.name,player.level,user[4],user[5],player.energy,premium, last_raid_in_time(player.last_raid))
+	embed = discord.Embed(description=main_text, colour = discord.Colour.from_rgb(0, 255, 128))
 	all_stats = None
 	buttons = menu_buttons
 
@@ -880,6 +892,7 @@ async def do_command(message):
 	try:
 		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade, 'buy':buy}
 		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'take':take, 'e':change_exp_command, 'bind':bind, 'stamina':stamina, 'battle_over':battle_over}
+		self_or_others_command = ['exp','str', 'stamina', 'battle_over', 'give', 'take', 'menu']
 		commands = member_commands
 		command = message.content.split()[0]
 
@@ -907,22 +920,8 @@ async def do_command(message):
 					member_commands = member_commands | admin_commands
 			
 			if mentions == []:
-				if command == 'exp':
-					await know_exp(message=message, mentions=[], self_call=True, db=db)
-				elif command == 'str':
-					await stats(member=message.author, message=message, db=db)
-				elif command == 'stamina':
-					await stamina(member=message.author, message=message, db=db)
-				elif command == 'battle_over':
-					await battle_over(member=message.author, message=message, db=db)
-				elif command == 'give':
-					await give(member=message.author, message=message, db=db)
-				elif command == 'take':
-					await take(member=message.author, message=message, db=db)
-				elif command == 'menu':
-					await menu(member=message.author, message=message, db=db)
-				else:
-					await member_commands[command](message=message, db=db)
+				if command in self_or_others_command:
+					await member_commands[command](member=message.author, message=message, db=db)
 				return
 			
 			elif command == 'raid':
@@ -933,12 +932,6 @@ async def do_command(message):
 				await duel(message, mentions, db=db)
 				return
 			
-			elif command == 'trade':
-				await trade(message, mentions, db=db)
-				return
-			elif command == 'exp':
-				await know_exp(message, mentions, db=db)
-				return
 			for user_ in mentions:
 				try:
 					await member_commands[command](member=user_,message=message, db=db)
