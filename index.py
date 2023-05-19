@@ -228,6 +228,7 @@ async def buy(message, db):
 			await send_embed(f'Недостаточно средств', message.channel.id)
 
 async def sell(message, db):
+	print('hrer')
 	id_ = message.content.split()[1]
 	channel_id = db.find_channel('shop')
 	if not channel_id or message.channel.id != int(channel_id):
@@ -254,6 +255,7 @@ async def show(message, attr, db):
 
 async def equip(message, db):
 	text = message.content.split()[1]
+	print(text)
 	if text.isnumeric():
 		player = db.get_player(message.author.id)
 		if player.equip(int(text)):
@@ -310,19 +312,16 @@ async def give(member, message, db):
 
 def last_raid_in_time(last_raid):
 	if not last_raid:
-		return 'давно'
+		return None
+	
 	last_raid = (datetime.now() - last_raid).seconds
 
 	if last_raid < 60:
 		return '{} {} назад'.format(last_raid,declination('секунд', last_raid, ['у', 'ы', '']))
 	elif last_raid < 3600:
 		return '{} {} назад'.format(last_raid//60,declination('минут', last_raid//60, ['у', 'ы', '']))
-	elif last_raid < 3600*24:
-		hours = last_raid//3600
-		minutes = (last_raid - hours)//60
-		return '{} {} {} {} назад'.format(hours,declination('час', hours, ['', 'а', 'ов']), minutes,declination('минут', minutes, ['у', 'ы', '']))
 	else:
-		'давно'
+		return None
 
 
 async def replay(interaction, battle, is_fav=False, db=None):
@@ -341,7 +340,7 @@ async def replay(interaction, battle, is_fav=False, db=None):
 
 	async def change_str(interaction):
 		buttons = []
-		view=View()
+		view=View(timeout=3600)
 		data = []
 		
 		if battle_index[0] > 0:
@@ -463,7 +462,11 @@ async def menu(message, member, db):
 	player = db.get_player(member.id)
 	user = db.get_user(player.id)
 	premium = 'да' if player.premium else 'нет'
-	main_text = '{}\n Уровень — {}\n Опыт — {} / {}\n Выносливоcть — {}\n Премиум — {}\n\n Последний рейд — {}'.format(player.name,player.level,user[4],user[5],player.energy,premium, last_raid_in_time(player.last_raid))
+	main_text = '{}\n Уровень — {}\n Опыт — {} / {}\n Выносливоcть — {}\n Премиум — {}\n\n'.format(player.name,player.level,user[4],user[5],player.energy,premium)
+	last_raid = last_raid_in_time(player.last_raid)
+
+	if last_raid:
+		main_text +=  f"Последний рейд — {last_raid}"
 	embed = discord.Embed(description=main_text, colour = discord.Colour.from_rgb(0, 255, 128))
 	all_stats = None
 	buttons = menu_buttons
@@ -761,7 +764,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 		
 		battle_index[0] = len(battle.history)-1
 		time_to_exit[0] = datetime.now()+timedelta(seconds=20*60)
-		view = View()
+		view = View(timeout=None)
 
 		if not battle.is_over:
 			button = Button(custom_id='battle', label='Дальше!', style=discord.ButtonStyle.green)
@@ -859,6 +862,7 @@ async def do_command(message):
 		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade, 'buy':buy}
 		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'take':take, 'e':change_exp_command, 'bind':bind, 'stamina':stamina, 'battle_over':battle_over}
 		self_or_others_command = ['exp','e','str', 'stamina', 'battle_over', 'give', 'take', 'menu']
+		only_self = ['equip', 'sell', 'buy', 'use']
 		commands = member_commands
 		command = message.content.split()[0]
 
@@ -887,7 +891,6 @@ async def do_command(message):
 			print(command)
 			if mentions == []:
 				if command in self_or_others_command:
-					print('ddd')
 					await member_commands[command](member=message.author, message=message, db=db)
 					return
 			
@@ -900,12 +903,15 @@ async def do_command(message):
 				await duel(message, mentions, db=db)
 				return
 			
-			for user_ in message.mentions:
-				try:
-					print(user_, 'hiiiiiiiiidd')
-					await member_commands[command](member=user_,message=message, db=db)
-				except:
-					traceback.print_exc()
+			if command in self_or_others_command:
+				for user_ in message.mentions:
+					try:
+						await member_commands[command](member=user_,message=message, db=db)
+					except:
+						traceback.print_exc()
+			else:
+				await member_commands[command](message=message, db=db)
+				return
 		
 		elif command in show_data:
 			await show(message, show_data[command], db=db)
