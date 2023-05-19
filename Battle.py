@@ -233,7 +233,7 @@ class Player(object):
 		self.anti_defence = Anti_defence(0)
 		self.armor_break = Armor_break(0)
 		self.crit_damage = Crit_damage(200)
-		self.crit_chance = Crit_chance(-50)
+		self.crit_chance = Crit_chance(10)
 		self.anti_crit = Anti_crit(0)
 		self.other_anti_crit = Anti_crit(0) 
 		self.stun = Stun(50)
@@ -434,6 +434,9 @@ class Player(object):
 		for items in self.arsenal:
 			self.make_special_effect(items)
 
+		if type(self) == Boss or not 68 in self.equipment.ids:
+			self.damage += self.damage_precent.value*self.damage.value//100
+
 		item = Different(id=-1, name='Подарок врага')
 		
 		for attr in self.__dict__:
@@ -445,7 +448,6 @@ class Player(object):
 					setattr(item, stat_attr, getattr(self,attr))
 
 		self.enemy_item = item
-		self.damage += self.damage_precent.value*self.damage.value//100
 		
 		#print('-----------------------------------------------')
 		
@@ -489,8 +491,6 @@ class Player(object):
 		if 66 in items.ids:
 			self.crit_chance = Crit_chance(40)
 			self.crit_damage = Crit_damage(400)
-		if 68 in items.ids:
-			self.damage = Damage(self.accuracy.value)
 		
 		if 69 in items.ids:
 			for i in range(0,self.defence.value,5):
@@ -503,7 +503,7 @@ class Player(object):
 		if 82 in items.ids:
 			for attr in self.__dict__:
 				basis = inspect.getmro(type(getattr(self,attr)))
-				not_include = [Bleeding_damage, Fire_damage, Stun, Multiplyer, Heal, Energy, Energy_regen]
+				not_include = [Bleeding_damage, Fire_damage, Stun, Multiplyer, Heal, Energy, Energy_regen, Darkness_awaits]
 
 				if Stat in basis and not 'enemy_' in attr:
 					for stat in not_include:
@@ -514,6 +514,9 @@ class Player(object):
 						stat += type(stat)(5)
 						#print(attr, stat)
 						setattr(self, attr, stat)
+
+		if 68 in items.ids:
+			self.damage = Damage(self.accuracy.value)
 
 	def battle_special_effect(self,other):
 		item = Different(id=-2, name='battle_effects')
@@ -606,8 +609,8 @@ class Player(object):
 		poison_damage = self.poison_damage - other.immunity
 		bleeding_damage = other.bleeding_damage_per_move - other.coagulation
 		damages = [poison_damage, bleeding_damage, other.fire_damage_per_move]
-
-		if self.darkness_awaits.value:
+		print(self.darkness_awaits.value,'daaaaark')
+		if self.darkness_awaits.value > 0:
 			damages_name = ['тёмной энергией и столько же восстановлено','кровотечением','огнём']
 		else:
 			damages_name = ['ядом','кровотечением','огнём']
@@ -617,8 +620,8 @@ class Player(object):
 				damage += damages[i].value
 				text += '{} {} {} {}\n\n'.format(declination(damages[i].value, 'Нанес',['ён','ено','ено']), damages[i], declination(damages[i].value, 'урон',['','а','а']), damages_name[i])
 
-				if self.darkness_awaits.value and i == 0:
-					darkness = Damage(damages[i].value)
+				if self.darkness_awaits.value > 0 and i == 0:
+					darkness = damages[i]
 
 		print('Другие',hand_damage)
 		
@@ -1258,18 +1261,19 @@ def import_from_file():
 
 
 difines_outfit = {Weapon:'Оружие', Armor:'Броня', Ring:'Кольцо', Belt:'Пояс', Pet:'Питомец', Necklace:'Ожерелье', Trophies:"Трофей", Food:"Еда", Potion:"Зелье"}
-difines_stat = {'health':'Здоровье', 'damage':'Урон', 'defence':'Защита', 'crit_chance':'Крит шанс->%', 'crit_damage':'Крит урон->%', 'accuracy':'Меткость->%', 'anti_defence':'Бронебробите->%', 'anti_crit':'Стойкость->%', 'vampirism':'Вампиризм->%', 'poison_damage':'Урон ядом->/ход', 'bleeding_damage':'Урон кровотечением->/ход', 'fire_damage':'Урон огнём->/ход', 'immunity':'Иммунитет', 'coagulation':'Коагуляция', 'bubble':'Божественный щит', 'stun':'Оглушение->%', 'multiplyer':'Множитель опыта->%', 'energy_regen':'Эффективность отдыха->/час'}
+difines_stat = {'health':'Здоровье', 'damage':'Урон', 'defence':'Защита->%', 'crit_chance':'Крит шанс->%', 'crit_damage':'Крит урон->%', 'accuracy':'Меткость->%', 'anti_defence':'Бронебробитие->%', 'anti_crit':'Стойкость->%', 'vampirism':'Вампиризм->%', 'poison_damage':'Урон ядом->/ход', 'bleeding_damage':'Урон кровотечением->/ход', 'fire_damage':'Урон огнём->/ход', 'immunity':'Иммунитет', 'coagulation':'Коагуляция', 'bubble':'Божественный щит', 'stun':'Оглушение->%', 'multiplyer':'Множитель опыта->%', 'energy_regen':'Эффективность отдыха->/час'}
 
 
 if __name__ == '__main__':
 	effects = ['damage','armor_penetration','krit','vampirism','accuracy','bleeding','stamina','poison','defence']
-	items = get_items('bosses')
+	items = get_items()
+	print(items[49])
 	#print(items[3])
 	#exit()
 	#print(items[30])
 	
-	#for item in sorted(list(items.keys())):
-	#	print(item, items[item].name)
+	for item in sorted(list(items.keys())):
+		print(item, items[item].name)
 
 	#print(items[602].anti_crit)
 	#item = items[87]
@@ -1305,9 +1309,9 @@ if __name__ == '__main__':
 	#print(b.crit_damage)
 	#item = Rune(id=0, price=0, rating='Мифический', name='Руна новичка', accuracy=10, damage=5)
 	#save_item(b,'bosses')
-	bosses = get_items('bosses')
-	bosses[4].items[0].bleeding_damage = Bleeding_damage(5)
-	bosses[4].different.items[0].bleeding_damage = Bleeding_damage(5)
+	#bosses = get_items('bosses')
+	#bosses[4].items[0].bleeding_damage = Bleeding_damage(5)
+	#bosses[4].different.items[0].bleeding_damage = Bleeding_damage(5)
 	
 	#bosses[4].set_stats()
 	#print(bosses[4])
@@ -1340,7 +1344,7 @@ if __name__ == '__main__':
 	#print(items.keys())
 	#item = Rune(id=0, name='Руна новичка', accuracy=5, price=0)
 	#save_item(item)
-	update_bosses()
+	#update_bosses()
 	#print(battle)
 	#battle.next()
 	#print(battle)
