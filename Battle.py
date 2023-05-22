@@ -6,7 +6,7 @@ import os
 from random import randint
 from datetime import datetime
 
-Version = 2.54
+Version = 2.61
 battle_cool_down = 60*60
 
 drop = {0:{'minExp':200,'maxExp':300}, 1:{'minExp':300,'maxExp':400,'rune':87,'chance':5}, 2:{'minExp':600,'maxExp':750,'rune':88,'chance':5}, 3:{'minExp':750,'maxExp':1000,'rune':89,'chance':5}, 4:{'minExp':1000,'maxExp':1200,'rune':90,'chance':5}, 5:{'minExp':1500,'maxExp':1500}, 6:{'minExp':1500,'maxExp':3000}, 7:{'minExp':3000,'maxExp':5000}}
@@ -35,6 +35,7 @@ def get_items(name='items'):
 		with open(name, 'wb') as file:
 			pickle.dump(items,file)
 		return
+	
 	with open(name,'rb') as file:
 		return pickle.load(file)
 
@@ -70,6 +71,9 @@ class Battle(object):
 		
 		self.weather = items[randint(500, 509)]
 		self.arena = items[randint(600, 609)]
+
+		#self.weather = items[507]
+		#self.arena = items[609]
 
 		del items
 		print(self.weather.name, self.arena.name)
@@ -207,6 +211,8 @@ class Player(object):
 		self.in_battle = False
 		self.energy = Energy(100)
 		self.last_raid = None
+		self.last_raid_call = None
+		self.raid_limit = True
 		self.last_energy_updated = datetime.now()
 		self.last_raid_ready = True
 		self.create_arsenal()
@@ -258,15 +264,28 @@ class Player(object):
 			#print(attr, self.__dict__[attr].value)
 			count += 1
 			text = difines_stat[attr]
-			attr = self.__dict__[attr]
+			attr_data = self.__dict__[attr]
 			
 			if '->' in text:
 				text = text.split('->')
 			else:
 				text = [text,'']  
 			
-			if attr.value != 0 or count < 9:
-				str_ += text[0]+' — '+str(attr)+text[1]+'\n'
+			if attr_data .value != 0 or count < 9:
+				extra = ''
+				extra_attr = None
+				if attr == 'health' or attr == 'bubble':
+					standart = self.__dict__['full_'+attr]
+				else:
+					standart = attr_data + type(attr_data)(0)
+
+				if standart.value != attr_data.value:
+					attr_data, extra_attr = standart.value, attr_data.value
+				
+				if extra_attr:
+					extra = ' ({})'.format(str(extra_attr))
+				
+				str_ += text[0]+' — '+str(attr_data)+extra+text[1]+'\n'
 		
 		str_ += 'Атрибут — '+self.magic_attribute.name 
 		return str_
@@ -328,7 +347,7 @@ class Player(object):
 		data = getattr(self,name)
 		for item in data.items:
 			for i in range(len(self.items)):
-				if self.items[i] == item.id:
+				if self.items[i].id == item.id:
 					del self.items[i]
 					del self.names[i]
 					del self.ids[i]
@@ -379,7 +398,7 @@ class Player(object):
 				return True
 
 	def set_items(self):
-		arsenal = [self.equipment,self.inventory,self.runes,self.different, self.bag]
+		arsenal = [self.inventory, self.equipment, self.runes, self.different, self.bag]
 		self.items = []
 		self.names = []
 		self.ids = []
@@ -397,10 +416,14 @@ class Player(object):
 			old_bubble = Bubble(self.bubble.value)
 		
 		self.set_default()
+
 		if not type(self) == Boss:
 			self.set_items()
 		arsenal = self.arsenal + [self.magic_attribute]
 		#print('-----------------------------------------------')
+		enemy_attrs = []
+		upgrade_attrs = []
+		
 		for items in arsenal:
 			#print(type(items))
 			if Magic_attribute in inspect.getmro(type(items)):
@@ -408,9 +431,7 @@ class Player(object):
 					continue
 			else:
 				items.set_stats()
-		
-			enemy_attrs = []
-			upgrade_attrs = []
+			
 			for attr in items.__dict__:
 				if Stat in inspect.getmro(type(getattr(items,attr))):
 					if hasattr(self, attr):
@@ -426,16 +447,18 @@ class Player(object):
 							upgrade_attrs.append(attr)
 					else:
 						setattr(self,attr,getattr(items,attr))
-
-		for attr in upgrade_attrs:
-			value = getattr(self,attr)+ type(getattr(self,attr))(0)
-			setattr(self,attr,value) 
+						upgrade_attrs.append(attr)
 
 		for items in self.arsenal:
 			self.make_special_effect(items)
 
+		if self.in_battle or type(self) == Boss:
+			for attr in upgrade_attrs:
+				value = getattr(self,attr) - type(getattr(self,attr))(0)
+				setattr(self,attr,value) 
+		
 		if type(self) == Boss or not 68 in self.equipment.ids:
-			self.damage += self.damage_precent.value*self.damage.value//100
+			self.damage.value += self.damage_precent.value*self.damage.value//100
 
 		item = Different(id=-1, name='Подарок врага')
 		
@@ -463,6 +486,8 @@ class Player(object):
 			
 			self.health += self.health_precent.value*self.health.value//100
 			time_left = (datetime.now() - self.last_energy_updated).seconds
+			self.full_health = Health(self.health.value)
+			self.full_bubble = Bubble(self.bubble.value)
 			
 			if self.energy.value != 100:
 				if self.energy.value > 60:
@@ -494,11 +519,11 @@ class Player(object):
 		
 		if 69 in items.ids:
 			for i in range(0,self.defence.value,5):
-				self.damage += Damage(1)
+				self.damage.value += 1
 
 		if 70 in items.ids and not self.in_battle:
 			for i in range(0,self.health.value,5):
-				self.damage -= Damage(1)
+				self.damage.value -= 1
 		
 		if 82 in items.ids:
 			for attr in self.__dict__:
@@ -511,7 +536,7 @@ class Player(object):
 							break
 					else:
 						stat = getattr(self,attr)
-						stat += type(stat)(5)
+						stat.value += 5
 						#print(attr, stat)
 						setattr(self, attr, stat)
 
@@ -581,11 +606,11 @@ class Player(object):
 			print('FFFFFFFFFF', damage)
 			
 			if self.check_rand(self.crit_chance - other.anti_crit):
-				damage = Damage((self.crit_damage - (other.anti_crit-self.other_anti_crit)).value//100*damage.value)
-				
-				if other.bubble.value == 0:
-					damage_text += 'Критический удар!\n\n'
+				damage = Damage((self.crit_damage - other.anti_crit).value//100*damage.value)
 
+				damage_text += 'Критический удар!\n\n'
+
+				if other.bubble.value <= 0:
 					if self.check_rand(self.stun):
 						other.stuned = True
 						damage_text += 'Ошеломление!\n\n'
@@ -677,7 +702,7 @@ class Player(object):
 	
 	def check_rand(self,stat):
 		rand = random.randint(0, 100)
-
+		print('check_rand',type(stat), rand, stat.value)
 		return rand <= stat.value
 
 
@@ -1056,19 +1081,25 @@ class Health_precent(Stat):
 	pass
 
 class Damage(Stat):
+	def __init__(self,value):
+		self.value = value
+		self.opposite = Defence
+		self.minimum = 1
+	
 	def __add__(self, other):		
 		if type(other) == int:
 			value = int(self.value) + other
 		else:
 			value = int(self.value) + int(other.value)
 
-		if value < 0:
-			value = 1
+		if value < self.minimum:
+			value = self.minimum
 
+		print(value,'hereeeeeeeeeeeeeeeeeee')
 		return type(self)(value)
 
 	def __sub__(self, other):
-		if type(other) == Defence:
+		if type(other) == self.opposite:
 			if other.value > 95:
 				value = 95
 			else:
@@ -1080,59 +1111,36 @@ class Damage(Stat):
 		
 		elif type(other) == int or type(other) == float:
 			value = self.value - other
-
 		else:
 			value = self.value - other.value
 
-		if value <= 0:
-			value = 1
+		print(value,'hereeeeeeeeeeeeeeeeeee')
+		if value < self.minimum:
+			value = self.minimum
+		
+		print(type(self),self.minimum)
 		
 		return type(self)(value)
 
-class Defence(Stat):
-	def __sub__(self, other):
-		if type(other) == Anti_defence:
-			if other.value > 95:
-				value = 95
-			else:
-				value = other.value
-			
-			value = math.ceil(self.value * (1-value*0.01))
-			
-		elif type(other) == int or type(other) == float:
-			value = self.value - other
-		else:
-			value = self.value - other.value
-
-		return type(self)(value)
+class Defence(Damage):
+	def __init__(self,value):
+		self.value = value
+		self.opposite = Anti_defence
+		self.minimum = 0
 
 class Anti_defence(Stat):
 	pass
 
-class Сrit(Stat):	
-	def __sub__(self, other):
-		if type(other) == Anti_crit:
-			if other.value > 95:
-				value = 95
-			else:
-				value = other.value
-			
-			value = math.ceil(self.value * (1-value*0.01))
-
-			if value < 1:
-				value = 1
-			
-			return type(self)(value)
-		else:
-			self.value -= other.value
-
-			if self.value < 1:
-				self.value = 1
-			
-		return type(self)(self.value)
-
+class Сrit(Damage):	
+	def __init__(self,value):
+		self.value = value
+		self.opposite = Anti_crit
+		self.minimum = 0
+		
 class Crit_damage(Сrit):
-	pass
+	def __init__(self,value):
+		super().__init__(value)
+		self.minimum = 100
 
 class Crit_chance(Сrit):
 	pass

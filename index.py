@@ -21,13 +21,13 @@ timer_level = ['4-7', '3-4', '3-5', '3-5', '4-6', '4-7', '5-7', '5-8', '5-9', '6
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='?',intents=discord.Intents.all())
-
+messages_to_delete = {}
 
 def connect_data_base(name):
 	BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 	db_path = os.path.join(BASE_DIR, name+".db")
-
-	if not os.path.exists(name+".db"):
+	
+	if not os.path.exists(db_path):
 		example = os.path.join(BASE_DIR, "example_to_copy.db")
 		shutil.copy(example,db_path)
 
@@ -43,16 +43,18 @@ def level_exp_cacl(level):
 async def change_exp(user, exp, db=None):
 	user[4] = user[4]+exp
 	db.update_user(user[2],{'exp':user[4]})
-	await check_level(user, db=db)
+	return await check_level(user, db=db)
 
 async def send_message(text, channel=676122065157488702):
 	channel = bot.get_channel(channel)
-	await channel.send(text)
+	message = await channel.send(text)
+	messages_to_delete[message] = 60
 
 async def send_embed(embed, channel=676122065157488702, view=None):
 	embed = discord.Embed(description=embed, colour = discord.Colour.from_rgb(0, 255, 128))
 	channel = bot.get_channel(int(channel))
-	return await channel.send(embed=embed, view=view)
+	message = await channel.send(embed=embed, view=view)
+	messages_to_delete[message] = 60
 
 def next_date_create(level):
 	if level > 100:
@@ -93,7 +95,10 @@ async def check_level(user, db):
 		db.update_player(user[2], player)
 		#await send_message('Поздравляю, '+dis_user.mention+', ты повысил уровень эволюции!'+f' Твоя эволюция {level} ранга!')
 	
-	return True
+	else:
+		level = None
+	
+	return level
 
 
 def declination(root,num,ending):
@@ -228,7 +233,6 @@ async def buy(message, db):
 			await send_embed(f'Недостаточно средств', message.channel.id)
 
 async def sell(message, db):
-	print('hrer')
 	id_ = message.content.split()[1]
 	channel_id = db.find_channel('shop')
 	if not channel_id or message.channel.id != int(channel_id):
@@ -255,7 +259,6 @@ async def show(message, attr, db):
 
 async def equip(message, db):
 	text = message.content.split()[1]
-	print(text)
 	if text.isnumeric():
 		player = db.get_player(message.author.id)
 		if player.equip(int(text)):
@@ -310,16 +313,22 @@ async def give(member, message, db):
 
 	await send_embed(name + f' {id_} успешно отдан', message.channel.id)
 
-def last_raid_in_time(last_raid):
+def last_raid_in_time(last_raid, reverse=False, max_=0):
 	if not last_raid:
 		return None
 	
-	last_raid = (datetime.now() - last_raid).seconds
-
+	if not reverse: 
+		last_raid = (datetime.now() - last_raid).seconds
+	else:
+		last_raid = max_ - (datetime.now() - last_raid).seconds
+	
 	if last_raid < 60:
-		return '{} {} назад'.format(last_raid,declination('секунд', last_raid, ['у', 'ы', '']))
+		return '{} {}'.format(last_raid,declination('секунд', last_raid, ['а', 'ы', '']))
 	elif last_raid < 3600:
-		return '{} {} назад'.format(last_raid//60,declination('минут', last_raid//60, ['у', 'ы', '']))
+		minutes = last_raid//60
+		seconds = last_raid%60
+		
+		return '{} {} {} {}'.format(minutes, declination('минут', minutes, ['а', 'ы', '']), seconds ,declination('секунд', seconds, ['у', 'ы', '']))
 	else:
 		return None
 
@@ -327,20 +336,18 @@ def last_raid_in_time(last_raid):
 async def replay(interaction, battle, is_fav=False, db=None):
 	async def add_to_fov(interaction):
 		player = db.get_player(interaction.user.id)
-		print(battle[0].id)
 		if not battle[0].id in player.favorite:
 			player.favorite.append(battle[0].id)
 			db.update_player(interaction.user.id, player)
 			channel = interaction.channel
 			message = await send_embed('Добавлено', channel.id)
 			await interaction.response.edit_message(embed=interaction.message.embeds[0])
-			await delete_message_on_time(message, 20)
 
 		return
 
 	async def change_str(interaction):
 		buttons = []
-		view=View(timeout=3600)
+		view=View(timeout=None)
 		data = []
 		
 		if battle_index[0] > 0:
@@ -363,6 +370,8 @@ async def replay(interaction, battle, is_fav=False, db=None):
 			await interaction.response.edit_message(embed=embed, view=view )
 		else:
 			await interaction.message.edit(embed=embed, view=view)
+
+		messages_to_delete[interaction.message] = 60*20
 		
 		return
 
@@ -388,7 +397,7 @@ async def replay(interaction, battle, is_fav=False, db=None):
 
 async def menu(message, member, db):
 	menu_buttons = [['equipment','Инвентарь'],['stats','Харак-ки'],['replays','Повторы']]
-	
+
 	async def menu_callback(interaction):
 		if interaction.user != message.author:
 			return
@@ -424,9 +433,6 @@ async def menu(message, member, db):
 		elif custom_id == 'replays':
 			battles = db.get_battles()
 			text = ''
-			print(battles)
-			print(player.favorite)
-			print(player.favorite)
 			buttons = [['menu', 'Назад']]
 
 			for battle_ in battles:
@@ -452,13 +458,14 @@ async def menu(message, member, db):
 			view.add_item(button)
 		
 		embed = discord.Embed(description=text, colour = discord.Colour.from_rgb(0, 255, 128))
-		await interaction.response.edit_message(embed=embed, view=view )
+		await interaction.response.edit_message(embed=embed, view=view)
+		messages_to_delete[interaction.message] = 60*5
 
 	
 	button = Button(custom_id='button1', label='Начать!', style=discord.ButtonStyle.green)
 
 	#await message.channel.send('Битва '+player.name+' с боссом '+boss.name, view=View().add_item(button))
-	view = View()
+	view = View(timeout=None)
 	player = db.get_player(member.id)
 	user = db.get_user(player.id)
 	premium = 'да' if player.premium else 'нет'
@@ -466,7 +473,7 @@ async def menu(message, member, db):
 	last_raid = last_raid_in_time(player.last_raid)
 
 	if last_raid:
-		main_text +=  f"Последний рейд — {last_raid}"
+		main_text +=  f"Последний рейд — {last_raid} назад"
 	embed = discord.Embed(description=main_text, colour = discord.Colour.from_rgb(0, 255, 128))
 	all_stats = None
 	buttons = menu_buttons
@@ -476,9 +483,21 @@ async def menu(message, member, db):
 		button.callback = menu_callback
 		view.add_item(button)
 	
-	await message.channel.send(embed=embed, view=view)
+	new_message = await message.channel.send(embed=embed, view=view)
+	messages_to_delete[new_message] = 60*5
 
 
+async def raid_limit(member,message,db):
+	player = db.get_player(member.id)
+	value = int(message.content.split(' ')[1])
+	if value == 0:
+		player.raid_limit = False
+		end = 'выключено'
+	else:
+		player.raid_limit = True
+		end = 'включено'
+	db.update_player(player.id, player)
+	await send_embed(f'Ограничение {end}')
 
 async def duel(message, mentions=[], db=None):
 	await do_battle(message,mentions=mentions, db=db, boss=None)
@@ -506,6 +525,7 @@ async def trade(member, message, db):
 			accepted.append(interaction.user)
 			embed = discord.Embed(description=interaction.message.embeds[0].description+'\n {} согласен!'.format(interaction.user.mention), colour = discord.Colour.from_rgb(0, 255, 128))
 			await interaction.response.edit_message(embed=embed, view=view)
+			messages_to_delete[interaction.message] = 60*3
 
 		for user in should_accept:
 			if not user in accepted:
@@ -542,17 +562,17 @@ async def trade(member, message, db):
 		embed = discord.Embed(description=answer, colour = discord.Colour.from_rgb(0, 255, 128))
 
 		await message.edit(embed=embed, view=None)
+		messages_to_delete[message] = 60*2
 
 	
 	text = str(message.content)
 	accepted = []
-	view = View()
+	view = View(timeout=None)
 	give_user = db.get_user(message.author.id)
 	
 	for mention in message.mentions:
 		text = text.replace(mention.mention,'').strip()
 	
-	print(text)
 	if len(text.split()) == 2:
 		full_exp = int(text.split()[1])
 		if int(give_user[4]) >= int(full_exp):
@@ -591,8 +611,8 @@ async def trade(member, message, db):
 	
 	embed = discord.Embed(description=answer, colour = discord.Colour.from_rgb(0, 255, 128))
 
-	await message.channel.send(embed=embed, view=view)
-	task = asyncio.create_task(delete_message_on_time(message, 60*3))
+	message = await message.channel.send(embed=embed, view=view)
+	messages_to_delete[message] = 60*5
 
 	return
 
@@ -614,47 +634,21 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 	
 	elif len(mentions) != 2:
 		return
-	
-	async def close_on_time(message):
-		while True:
-			if (datetime.now() >= time_to_exit[0]) and not battle.is_over:
-				if battle.move == 0:
-					await message.delete()
-					return
-				
-				count = 0
-				while not battle.is_over:
-					battle.next()
-					count += 1
-				
-				if count > 10:
-					reward = False
-				else:
-					reward = True
-				
-				await end_battle(message.edit, reward=reward)
-				return
-
-			await asyncio.sleep(3)
 
 	async def cancel_battle(edit, player, text):
 		embed = discord.Embed(description=text, colour = discord.Colour.from_rgb(0, 255, 128))
-		message = await edit(embed=embed,view=View())
-		task = asyncio.create_task(delete_message_on_time(message, 30))
+		message = await edit(embed=embed,view=View(timeout=None))
+		messages_to_delete[message] = 40
 		return message
 
 
 	async def battle_callback(interaction):
-		buttons = []
-
-		# Кнопки назад вперёд
-
 		async def end_battle(edit, reward=True):
 			text = battle.message+'\n'
 			survived_players = battle.players[:]
 			battle.sort()
 		
-			if survived_players != [] and boss.id in drop:
+			if survived_players != [] and boss.id in drop and reward:
 				exp = randint(drop[battle.boss.id]['minExp'], drop[battle.boss.id]['maxExp'])
 			else:
 				exp = 0
@@ -663,8 +657,6 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 			
 			for player in battle.members:
 				if not type(player) == Boss:
-					print(player)
-					print(player.id)
 					db_player = db.get_player(str(player.id))
 					db_player.clear('consumables')
 					text += db_player.name
@@ -687,8 +679,13 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 					if exp > 0:
 						exp *= player.multiplyer.value/100
 						exp = int(exp)
-						await change_exp(db.get_user(db_player.id), exp, db=db)
+						level = await change_exp(db.get_user(db_player.id), exp, db=db)
 						text += f' получено {exp} опыта.'
+
+						if level:
+							db_player.level = level
+							text += f" Получен новый уровень!"
+						
 					else:
 						text += ' опыт не получен.'
 					
@@ -716,6 +713,29 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 			await replay(interaction, battle, db=db)
 			return
 
+	
+		async def close_on_time(message):
+			while True:
+				if (datetime.now() >= time_to_exit[0]) and not battle.is_over:
+					if battle.move == 0:
+						return
+					
+					count = 0
+					while not battle.is_over:
+						battle.next()
+						count += 1
+					
+					if count > 10:
+						reward = False
+					else:
+						reward = True
+					
+					await end_battle(message.edit, reward=reward)
+					return
+
+				await asyncio.sleep(3)
+		buttons = []
+
 		#Код битвы
 		if mentions != []:
 			if interaction.user in mentions and interaction.user not in accepted:
@@ -723,14 +743,14 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 				text = interaction.message.embeds[0].description
 
 			if not len(accepted) == len(mentions):
-				view = View()
+				view = View(timeout=None)
 
 				for user in accepted:
 					player = db.get_player(user.id)
 					
 					if player.in_battle:
 						text += user.mention+' Не может участовать в бою, так как уже в сражении'
-						time_to_exit[0] = datetime.now()+timedelta(seconds=30)
+						messages_to_delete[interaction.message] = 30
 						break
 					else:
 						text += ' '+user.mention+' Готов! '
@@ -738,9 +758,10 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 					button = Button(custom_id='battle_button', label='Начать!', style=discord.ButtonStyle.green)
 					button.callback = battle_callback
 					embed = discord.Embed(description=text, colour = discord.Colour.from_rgb(0, 255, 128))
-					view = View().add_item(button)
+					view = View(timeout=None).add_item(button)
 				
 				await interaction.response.edit_message(embed=embed, view=view)
+				messages_to_delete[interaction.message] = 60*3
 				return
 		
 		if battle.move == 0:
@@ -749,7 +770,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 				if player.in_battle:
 					text = 'Битва не может быть начата, так как игрок {} уже находится в сражении.'.format(player.name)
 					await cancel_battle(interaction.response.edit_message, player, text)
-					time_to_exit[0] = datetime.now()+timedelta(seconds=30)
+					messages_to_delete[interaction.message] = 30
 					return
 			
 			for player in battle.players:
@@ -759,11 +780,14 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 				db.update_player(player.id,player)	
 
 			battle.history.append(interaction.message.embeds[0].description)
+			task = asyncio.create_task(close_on_time(interaction.message))
+
 		buttons = []
 		battle.next()
 		
 		battle_index[0] = len(battle.history)-1
-		time_to_exit[0] = datetime.now()+timedelta(seconds=20*60)
+		time_to_exit[0] = datetime.now()+timedelta(seconds=60*20)
+		await not_delete(interaction.message)
 		view = View(timeout=None)
 
 		if not battle.is_over:
@@ -794,25 +818,31 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 	added_users = []
 
 	for user in mentions:
-		print(user)
 		player = db.get_player(user.id)
-		cnacel = False
+		cancel = False
 
 		if player.in_battle:
 			text = 'Битва не может быть начата, так как игрок {} уже находится в сражении.'.format(player.name)
-			cnacel = True
+			cancel = True
 
 		elif player.energy.value <= 49:
-			cnacel = True
-
 			if player.energy.value <= 30:
 				text = 'Битва не может быть начата, так как у игрока {} накопилась усталость 😪'.format(player.name)
 			elif not player.last_raid_ready and boss:
 				text = 'Прошло слишком мало времени с последнего рейда {}'.format(player.name)
 			else:
-				cnacel = False			
+				cancel = False
 
-		if cnacel:
+		if not cancel and boss and user.id == message.author.id and player.raid_limit:
+			last_raid_call = last_raid_in_time(player.last_raid_call, reverse=True, max_=60*3)
+			if last_raid_call and (datetime.now() - player.last_raid_call).seconds < 60*3:
+				text = f'Вы не можете вызывать рейд чаще чем в три минуты, осталось {last_raid_call}'
+				cancel = True
+			else:
+				player.last_raid_call = datetime.now()
+				db.update_player(player.id, player)
+
+		if cancel:
 			await cancel_battle(message.channel.send, player, text)
 			return
 	
@@ -833,7 +863,7 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 	text = "Место действие: {} / Условие: {}\n\n".format(battle.arena.name,battle.weather.name)
 
 	for player in battle.members:
-		text += player.name+': Здоровье - '+str(player.health)+', Урон - '+str(player.damage.value)
+		text += player.name+': Здоровье - '+str(player.health)+', Урон - '+str(player.damage)
 		if type(player) != Boss:
 			text += ',  🔋{}/100'.format(str(player.energy))
 			
@@ -845,9 +875,8 @@ async def do_battle(message, mentions=[], db=None, boss=None):
 	#await message.channel.send('Битва '+player.name+' с боссом '+boss.name, view=View().add_item(button))
 	embed = discord.Embed(description=text, colour = discord.Colour.from_rgb(0, 255, 128))
 
-	new_message = await message.channel.send(embed=embed, view=View().add_item(battle_button))
-
-	task = asyncio.create_task(close_on_time(new_message))
+	new_message = await message.channel.send(embed=embed, view=View(timeout=None).add_item(battle_button))
+	messages_to_delete[new_message] = 60*3
 
 	return
 
@@ -860,9 +889,8 @@ async def do_command(message):
 	show_data = {'runes':'runes', 'eq':'equipment', 'inv':'inventory', 'cons':'consumables', 'diff':'different','bag':'bag'}
 	try:
 		member_commands = {'exp':know_exp, 'str':stats, 'equip':equip, 'sell':sell, 'raid':raid, 'attr':get_attr,'menu':menu, 'duel':duel,'use':use, 'trade':trade, 'buy':buy}
-		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'take':take, 'e':change_exp_command, 'bind':bind, 'stamina':stamina, 'battle_over':battle_over}
-		self_or_others_command = ['exp','e','str', 'stamina', 'battle_over', 'give', 'take', 'menu']
-		only_self = ['equip', 'sell', 'buy', 'use']
+		admin_commands = {'ban':message.guild.ban, 'mute':mute, 'give':give, 'take':take, 'e':change_exp_command, 'bind':bind, 'stamina':stamina, 'battle_over':battle_over, 'raid_limit':raid_limit}
+		self_or_others_command = ['exp','e','str', 'stamina', 'battle_over', 'give', 'take', 'menu','trade', 'raid_limit']
 		commands = member_commands
 		command = message.content.split()[0]
 
@@ -873,7 +901,7 @@ async def do_command(message):
 			reply_user = reply_mess.author
 			if not reply_user in mentions:
 				mentions.append(reply_user)
-		print(mentions)
+
 		if command[0] == prefix and command[1:] in list(admin_commands.keys())+list(member_commands.keys()):
 			command = command[1:]
 			if command in admin_commands.keys():
@@ -895,7 +923,6 @@ async def do_command(message):
 					return
 			
 			if command == 'raid':
-				print('here')
 				await raid(message, mentions, db=db)
 				return
 
@@ -955,6 +982,43 @@ async def on_message(message):
 			db.update_user(user[2],{'next_message_date':next_date_create(user[3])})
 
 @bot.event
+async def on_ready():
+	await delete_messages()
+
+async def delete_messages():
+	sleep = 5
+	
+	while True:
+		try:
+			ids = []
+			await asyncio.sleep(sleep)
+
+			for i in range(len(messages_to_delete)-1, -1, -1):
+				message = list(messages_to_delete.keys())[i]
+				messages_to_delete[message] -= sleep
+				if message.id not in ids:
+					if messages_to_delete[message] <= 0:
+						await message.delete()
+						del messages_to_delete[message]
+						ids.append(message.id)
+						break
+				else:
+					del messages_to_delete[message]
+					break
+		except:
+			traceback.print_exc()
+			continue
+
+async def not_delete(message):
+	while True:
+		for message_ in messages_to_delete:
+			if message.id == message_.id:
+				del messages_to_delete[message_]
+				break
+		else:
+			break
+
+@bot.event
 async def on_member_join(member):
 	db = connect_data_base(member.guild.name)
 	if not db.user_exists(member.id):
@@ -967,6 +1031,7 @@ async def on_member_join(member):
 if __name__ == '__main__':
 	global prefix
 	prefix = bot_data['prefix']
+	#$task = asyncio.create_task(delete_messages())
 	bot.run(bot_data['token'])
 
 #print(level_exp_cacl(20))
